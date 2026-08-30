@@ -128,3 +128,30 @@ boundaries) — recorded as measured instrument behavior rather than
   through an actual image generator and compare against the source frame
   — measures prompt fidelity, not just plausibility. Not done here (no
   generator wired into this environment).
+
+
+## 2026-08-30 — Publication prep (outbound blocked, handed to Jérémie)
+
+**Done.**
+
+- Restored `homepage`/`repository` (github.com/jeremieLouvaert/claude-shotlist)
+  in SKILL.md frontmatter, `.claude-plugin/plugin.json`,
+  `.claude-plugin/marketplace.json`, `.codex-plugin/plugin.json`; replaced
+  README `<this-repo>` placeholders and dropped the "not yet published" note.
+  Manifests re-parsed OK. Commit 3c903f0.
+- Renamed branch `shot-prompts` → `main` (stale local `main` was just
+  upstream's tip 7711231; deleted, recoverable via `upstream/main`).
+- Tagged `v0.4.0` (annotated). Pushing the tag triggers release.yml →
+  builds and attaches `dist/shotlist.skill`.
+
+**Blocked — by design.** The CanvasCamp-root guardrail hook rejects GitHub
+mutations from an agent shell (outbound is Jérémie's to run). Commands to
+finish, from `claude-shotlist/`:
+
+```
+gh repo create claude-shotlist --public --source . --remote origin --push --description "Turn a reference video into a per-shot generation brief: one image prompt + one motion note per detected cut. Fork of taoufik123-collab/claude-watch."
+git push origin v0.4.0
+```
+
+Then verify: release appears with `dist/shotlist.skill` attached, README
+renders, clone-install path works.
