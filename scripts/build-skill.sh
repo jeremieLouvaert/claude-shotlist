@@ -2,7 +2,7 @@
 # build-skill.sh — package this repo as a claude.ai-upload-ready .skill file.
 # Usage: bash scripts/build-skill.sh  (run from repo root)
 #
-# Produces dist/watch.skill, a zip with a single top-level `watch/` directory
+# Produces dist/shotlist.skill, a zip with a single top-level `shotlist/` directory
 # containing SKILL.md and the scripts/ runtime. claude.ai's skill upload has a
 # 200-file cap; `export-ignore` in .gitattributes + the zip -d strips below
 # keep the bundle lean.
@@ -17,8 +17,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 
 mkdir -p dist
-OUT="dist/watch.skill"
-git archive --format=zip --prefix=watch/ --output="$OUT" HEAD
+OUT="dist/shotlist.skill"
+git archive --format=zip --prefix=shotlist/ --output="$OUT" HEAD
 
 # claude.ai's .skill bundle needs only SKILL.md + scripts/ runtime. Claude Code
 # needs hooks/, commands/, and .claude-plugin/ in the git archive (that's why
@@ -26,9 +26,9 @@ git archive --format=zip --prefix=watch/ --output="$OUT" HEAD
 # strip them to keep a single canonical SKILL.md and stay well under the
 # 200-file cap.
 zip -d "$OUT" \
-  "watch/hooks/*" \
-  "watch/commands/*" \
-  "watch/.claude-plugin/*" \
+  "shotlist/hooks/*" \
+  "shotlist/commands/*" \
+  "shotlist/.claude-plugin/*" \
   > /dev/null 2>&1 || true
 
 COUNT=$(unzip -l "$OUT" | tail -1 | awk '{print $2}')

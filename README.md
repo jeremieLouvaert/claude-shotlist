@@ -1,224 +1,78 @@
-# /watch
+# /shotlist
 
-**Give Claude the ability to watch any video.**
+**A reference video in, a per-shot generation brief out.**
 
-> Paste a URL or a local file and Claude *watches* it — **scene-change frame extraction** (one frame per cut instead of every-N-seconds), a **0-10s hook microscope** (dense frames + word-level Whisper on the opening, where every video earns or loses your attention), and **optional Obsidian auto-save** so a watched video becomes a connected wiki entry without copy-paste.
+Point it at a competitor ad, a mood-board clip, or your own dailies. Claude downloads the video, cuts it into shots (one frame per detected scene change, not a uniform tick), reads every frame alongside a timestamped transcript, and writes **one still-image generation prompt and one motion/camera note per shot** — the way a director briefs a stills artist, not a caption. You hand-edit the prompts, then feed them into a stills-then-motion pipeline: generate and lock the stills first (e.g. Nano Banana Pro), then run camera interpolation on the locked stills (e.g. Kling, Veo 3.1).
 
-**▶ Watch the skill in action** (this video is where `/watch` was born):
-
-[![This Claude Skill Watches Videos So You Don't Have To](https://img.youtube.com/vi/iYG5tiFfK3E/maxresdefault.jpg)](https://www.youtube.com/watch?v=iYG5tiFfK3E&t=43s)
-
-Claude Code:
-```
-/plugin marketplace add taoufik123-collab/claude-watch
-/plugin install watch@claude-watch
-```
-
-claude.ai (web): [download `watch.skill`](https://github.com/taoufik123-collab/claude-watch/releases/latest) and drop it into Settings → Capabilities → Skills.
-
-Codex / generic skills:
-```bash
-git clone https://github.com/taoufik123-collab/claude-watch.git ~/.codex/skills/watch
-```
-
-Zero config to start — `yt-dlp` and `ffmpeg` install on first run via `brew` on macOS (Linux/Windows print exact commands). Captions cover most public videos for free. Whisper API key is only needed when a video has no captions. Set `$WATCH_VAULT_DIR` to point at your Obsidian vault for auto-save, or leave it unset and the skill skips the ingest step quietly.
-
-## What's inside
-
-- **Scene-change frame extraction** — `scripts/frames.py` grabs one frame per detected shot via ffmpeg's `select=gt(scene,...)`, not a uniform tick every N seconds. Token cost stays flat on long videos because the frame count is bounded by the number of cuts, not the duration.
-- **0-10s hook microscope** — `scripts/hook.py` runs a denser 2 fps pass on the opening 10 seconds plus a word-level Whisper transcript, so the report tells you what was on screen *as each word landed*. The first 10 seconds is where every video either earns your attention or loses it.
-- **Structured `report.md` with Claude-fill markers** — `scripts/report.py` emits a fixed-schema report (TL;DR, key moments, hook breakdown, editorial profile, quotable moments, entities, concepts, transcript) where narrative sections are explicit `<!-- pending Claude fill: ... -->` markers. Claude has a job-list to walk before ingest, not a blank doc.
-- **Optional Obsidian auto-save** — Step 4.4 stages the report into `$VAULT_DIR/raw/watched/<slug>/` and opens it via the `obsidian://` URL scheme. Step 4.5 offers ingest into the vault's wiki. Both steps skip cleanly when no vault is detected. Vault path is resolved from `$WATCH_VAULT_DIR` or auto-detected from `~/Second brain/`, `~/Documents/Obsidian/`, `~/Obsidian/`.
-
-The core pipeline — yt-dlp download, ffmpeg frames, Groq/OpenAI Whisper backends, the `--start`/`--end` focused mode, the SessionStart hook, the multi-surface install — comes from the original `claude-video` project and works unchanged (see [Credits](#credits)).
-
----
-
-Claude can read a webpage, run a script, browse a repo. What it can't do, out of the box, is *watch a video*. You paste a YouTube link and it has to either guess from the title or pull a transcript that's missing 90% of what's on screen.
-
-With Claude Video `/watch` you can paste a URL or a local path, ask a question, and Claude downloads the video, extracts frames at an auto-scaled rate, pulls a timestamped transcript (free captions when available, Whisper API as fallback), and `Read`s every frame as an image. By the time it answers, it has *seen* the video and *heard* the audio.
+The tool stops at the prompt. Generation stays a separate, deliberate step — the point is a brief you can argue with, not an automated pipeline you can't.
 
 ```
-/watch https://youtu.be/iYG5tiFfK3E how does this creator hook the viewer in the first 45 seconds?
+/shotlist https://youtu.be/<reference-ad> break this down for a 20s product film
 ```
 
-## Why this exists
+## What you get
 
-I built this because I'm constantly using video to keep up with content. If I see a YouTube video that's blowing up, I want to know how the creator structured the hook — what's on screen in the first 3 seconds, what they said, why it worked. That used to mean watching it myself with a notepad. Now I just paste the URL and ask.
+Every run emits a structured `report.md`. The creative-direction core is the **Shot prompts** section — one entry per cut:
 
-The other half is summarization. Most YouTube videos don't deserve 20 minutes of my attention. I hand the URL to Claude, it pulls the transcript, and tells me what actually happened. If the visual matters, frames come along too. If it's a podcast or a talking head, transcript is enough.
+```markdown
+### Shot 3 — [00:07] `frame_0003.jpg` (~2.4s to next cut)
 
-Claude is great at reading and synthesizing — but until now, video was the one input I couldn't hand it. Pasting a YouTube link got you nothing useful. `/watch` closes that gap.
+- **image_prompt:** Low-angle medium shot of a canvas tent wall in raking
+  golden-hour light, 35mm feel, warm amber grade, heavy cotton weave visible
+  in the highlights, guy-line cutting the frame diagonally.
+- **motion_note:** Slow push-in, ~2s, settling just before the cut; next shot
+  answers with the reverse angle, so end the move steady.
+```
 
-## What people actually use it for
+Around it, the full editorial analysis rides along:
 
-**Analyze someone else's content.** `/watch https://youtu.be/<viral-video> what hook did they open with?` Claude looks at the first frames, reads the opening transcript, breaks down the structure. Same for ad creative, competitor launches, podcast intros, anything where the *how* matters as much as the *what*.
+- **Shot-by-shot structure** — scene-change frame extraction, so the shot list matches the edit, and token cost is bounded by the number of cuts, not the duration.
+- **0–10s hook microscope** — a dense 2 fps pass plus word-level transcript on the opening, frame-accurate to what was on screen as each word landed.
+- **Editorial pacing metrics** — cuts/min, mean and median shot length.
+- **TL;DR, key moments, quotable moments, entities, concepts, full transcript** — all as explicit `<!-- pending Claude fill -->` markers that Claude fills from the frames and transcript already in context. No extra API calls.
 
-**Diagnose a bug from a video.** Someone sends you a screen recording of something broken. `/watch bug-repro.mov what's going wrong?` Claude watches the recording, finds the frame where the issue appears, describes what's on screen, often catches the cause without you ever opening the file.
+Running an analysis-only pass (summarize a talk, diagnose a screen recording)? `--no-shot-prompts` skips the shot-prompt section and the report is byte-identical to the upstream `/watch` output.
 
-**Summarize a video.** `/watch https://youtu.be/<long-thing> summarize this` does the obvious thing — pulls the structure, the key moments, what was actually said and shown. Faster than watching at 2x.
+When the source is static or screen-recorded and scene detection falls back to uniform sampling, per-shot boundaries don't exist — the section then covers hero frames only, under an explicit note, rather than inventing cuts.
 
 ## How it works
 
-1. **You paste a video and a question.** URL (anything yt-dlp supports — YouTube, Loom, TikTok, X, Instagram, plus a few hundred more) or a local path (`.mp4`, `.mov`, `.mkv`, `.webm`).
-2. **`yt-dlp` downloads it.** For URLs, into a temp working directory. For local files, no download — just probed in place.
-3. **`ffmpeg` extracts frames at an auto-scaled rate.** The frame budget is duration-aware: ≤30s gets ~30 frames, 30-60s gets ~40, 1-3min gets ~60, 3-10min gets ~80, longer gets 100 sparsely. Hard ceilings: 2 fps, 100 frames. JPEGs at 512px wide by default — bump with `--resolution 1024` if Claude needs to read on-screen text.
-4. **The transcript comes from one of two places.** First try: `yt-dlp` pulls native captions (manual or auto-generated) from the source. Free, instant, accurate-ish. Fallback: extract a mono 16 kHz audio clip and ship it to Whisper — Groq's `whisper-large-v3` (preferred — cheaper and faster) or OpenAI's `whisper-1`.
-5. **Frames + transcript are handed to Claude.** The script prints frame paths with `t=MM:SS` markers and the transcript with timestamps. Claude `Read`s each frame in parallel — JPEGs render directly as images in its context.
-6. **Claude answers grounded in what's actually on screen and in the audio.** Not "based on the description" or "according to the title." It saw the frames. It heard the transcript. It answers the way someone who watched the video would.
-7. **Cleanup.** The script prints a working directory at the end. If you're not asking follow-ups, Claude removes it.
+1. **Download / probe.** URLs via `yt-dlp` (YouTube, Loom, TikTok, X, Instagram, and everything else yt-dlp supports); local files (`.mp4`, `.mov`, `.mkv`, `.webm`) are probed in place.
+2. **Cut detection.** `ffmpeg`'s `select=gt(scene,…)` filter extracts one frame per shot boundary. Fixed for ffmpeg ≥ 8 (upstream's `-vsync` flag was removed there; this fork uses `-fps_mode vfr` with a legacy retry).
+3. **Transcript.** Native captions first (free, instant). Fallback: Whisper via Groq (`whisper-large-v3`, preferred) or OpenAI (`whisper-1`).
+4. **Claude reads everything.** Frame paths print with `t=MM:SS` markers; Claude `Read`s each frame as an image and fills every report marker — shot prompts included — grounded in what's actually on screen.
+5. **Optional Obsidian auto-save.** The finished report can stage into your vault and run your vault's own ingest op. Skips quietly when no vault is configured.
 
-## Frame budget — why it matters
-
-Token cost is dominated by frames. Every frame is an image; image tokens add up fast. The script's auto-fps logic exists so you don't blow your context budget on a sparse scan of a 30-minute video that would have been better answered by a focused 30-second window.
-
-| Duration | Default frame budget | What you get |
-|----------|---------------------|--------------|
-| ≤30 s | ~30 frames | Dense — basically every key moment |
-| 30 s - 1 min | ~40 frames | Still dense |
-| 1 - 3 min | ~60 frames | Comfortable |
-| 3 - 10 min | ~80 frames | Sparse but workable |
-| > 10 min | 100 frames | "Sparse scan" warning — re-run focused |
-
-When the user names a moment ("around 2:30", "the last 30 seconds", "from 0:45 to 1:00"), pass `--start` / `--end`. Focused mode gets denser per-second budgets, capped at 2 fps. Far more useful than a sparse pass over the whole thing.
+Focused mode (`--start` / `--end`) gets denser per-second budgets when you only care about a window — far more useful than a sparse pass over a 10-minute video.
 
 ## Install
 
-| Surface | Install |
-|---------|---------|
-| **Claude Code** | `/plugin marketplace add taoufik123-collab/claude-watch` then `/plugin install watch@claude-watch` |
-| **claude.ai** (web) | [Download `watch.skill`](https://github.com/taoufik123-collab/claude-watch/releases/latest) → Settings → Capabilities → Skills → `+` |
-| **Codex** | `git clone https://github.com/taoufik123-collab/claude-watch.git ~/.codex/skills/watch` |
-| **Manual / dev** | `git clone https://github.com/taoufik123-collab/claude-watch.git ~/.claude/skills/watch` |
-| **Configuration** | Optional: `export WATCH_VAULT_DIR=/path/to/your/obsidian/vault` to enable auto-save. Auto-detects `~/Second brain/`, `~/Documents/Obsidian/`, `~/Obsidian/`. |
-
-### Claude Code
-
-```
-/plugin marketplace add taoufik123-collab/claude-watch
-/plugin install watch@claude-watch
-```
-
-Update later with `/plugin update watch@claude-watch`.
-
-### claude.ai (web)
-
-1. [Download `watch.skill`](https://github.com/taoufik123-collab/claude-watch/releases/latest) from the latest release.
-2. Go to Settings → Capabilities → Skills.
-3. Click `+` and drop the file in.
-
-Enable "Code execution and file creation" under Capabilities first — the skill shells out to `ffmpeg` and `yt-dlp`, so it won't run without it.
-
-### Codex
+**Not yet published.** This fork lives as a local repo for now; install from a clone:
 
 ```bash
-git clone https://github.com/taoufik123-collab/claude-watch.git ~/.codex/skills/watch
+git clone <this-repo> ~/.claude/skills/shotlist     # Claude Code (manual)
+git clone <this-repo> ~/.codex/skills/shotlist      # Codex / generic skills
+bash scripts/build-skill.sh                          # claude.ai: builds dist/shotlist.skill to upload
 ```
 
-### Manual (developer)
+Zero config to start: `ffmpeg` and `yt-dlp` install on first run via `brew` on macOS (Linux/Windows print exact commands). A Whisper API key (`GROQ_API_KEY` or `OPENAI_API_KEY` in `~/.config/watch/.env`) is only needed for videos without captions.
 
-```bash
-git clone https://github.com/taoufik123-collab/claude-watch.git ~/.claude/skills/watch
-```
+## Configuration
 
-## First run
+| Variable | Effect |
+|----------|--------|
+| `SHOTLIST_VAULT_DIR` | Path to your Obsidian vault; enables auto-save. |
+| `WATCH_VAULT_DIR` | Honored as a fallback (upstream compat). |
+| *(unset)* | Auto-detects `~/Second brain/`, `~/Documents/Obsidian/`, `~/Obsidian/`; otherwise the ingest steps skip quietly. |
 
-On the first `/watch` call, the skill runs `scripts/setup.py --check`. If `ffmpeg` / `yt-dlp` aren't on your PATH, or no Whisper API key is set, it walks you through fixing it:
+API keys live in `~/.config/watch/.env` (mode `0600`; path kept from upstream so existing setups keep working). `--no-whisper` skips the fallback entirely.
 
-- **macOS** — auto-runs `brew install ffmpeg yt-dlp`.
-- **Linux** — prints the exact `apt` / `dnf` / `pipx` commands.
-- **Windows** — prints the `winget` / `pip` commands.
-- **API key** — scaffolds `~/.config/watch/.env` (mode `0600`) with commented placeholders for `GROQ_API_KEY` (preferred) and `OPENAI_API_KEY`.
+## Scope, deliberately
 
-After setup, preflight is silent and `/watch` just works. The check is a sub-100ms lookup, so it doesn't slow you down on subsequent runs.
-
-## Bring your own keys
-
-Captions cover the majority of public videos for free. The Whisper fallback only kicks in when a video genuinely has no caption track — typically local files, TikToks, some Vimeos, and the occasional caption-less YouTube upload.
-
-| Capability | What you need | Cost |
-|------------|---------------|------|
-| Download + native captions | `yt-dlp` + `ffmpeg` | Free |
-| Whisper fallback (preferred) | [Groq API key](https://console.groq.com/keys) — `whisper-large-v3` | Cheap, fast |
-| Whisper fallback (alt) | [OpenAI API key](https://platform.openai.com/api-keys) — `whisper-1` | Standard pricing |
-| Disable Whisper entirely | `--no-whisper` | Free, frames-only when no captions |
-
-## Usage
-
-```
-/watch https://youtu.be/iYG5tiFfK3E how does this creator hook the viewer in the first 45 seconds?
-/watch https://www.tiktok.com/@user/video/123 summarize this
-/watch ~/Movies/screen-recording.mp4 when does the UI break?
-/watch https://vimeo.com/123 what tools does she mention?
-```
-
-Focused on a specific section — denser frame budget, lower token cost:
-```
-/watch https://youtu.be/abc --start 2:15 --end 2:45
-/watch video.mp4 --start 50 --end 60
-/watch "$URL" --start 1:12:00            # from 1h12m to end
-```
-
-Other knobs (passed to `scripts/watch.py`):
-
-- `--max-frames N` — lower the frame cap for a tighter token budget.
-- `--resolution W` — bump frame width to 1024 px when Claude needs to read on-screen text (slides, terminals, code).
-- `--fps F` — override the auto-fps calculation (still capped at 2 fps).
-- `--whisper groq|openai` — force a specific Whisper backend.
-- `--no-whisper` — disable transcription entirely; frames only.
-- `--out-dir DIR` — keep working files somewhere specific (default: auto-generated tmp dir).
-
-## Limits
-
-- **Best accuracy: under 10 minutes.** Past that the script prints a "sparse scan" warning — re-run focused on the part you actually care about with `--start`/`--end`.
-- **Hard caps: 2 fps, 100 frames.** Frame count drives token cost; the script enforces this even when the auto-fps math would imply higher.
-- **Whisper upload limit: 25 MB.** At mono 16 kHz that's about 50 minutes of audio. Longer videos need either captions or `--start`/`--end` to a smaller window.
-- **No private platforms.** This skill doesn't log into anything. Public URLs and local files only. If yt-dlp can't reach it without auth, neither can `/watch`.
-
-## Structure
-
-```
-.
-├── SKILL.md                 # skill contract — loaded by all three surfaces
-├── scripts/
-│   ├── watch.py             # entry point — orchestrates download → frames → transcript
-│   ├── download.py          # yt-dlp wrapper
-│   ├── frames.py            # ffmpeg frame extraction + auto-fps logic
-│   ├── transcribe.py        # VTT parsing + dedupe + Whisper orchestration
-│   ├── whisper.py           # Groq / OpenAI clients (pure stdlib)
-│   ├── setup.py             # preflight + installer
-│   └── build-skill.sh       # build dist/watch.skill for claude.ai upload
-├── hooks/                   # SessionStart status hook (Claude Code only)
-├── .claude-plugin/          # plugin.json + marketplace.json (Claude Code)
-├── .codex-plugin/           # codex packaging
-└── .github/workflows/       # release.yml — auto-builds watch.skill on tag push
-```
-
-## Develop
-
-```bash
-# Build the claude.ai upload bundle:
-bash scripts/build-skill.sh      # → dist/watch.skill
-```
-
-Releasing: tag `vX.Y.Z`, push the tag. The workflow builds `dist/watch.skill` and attaches it to the GitHub release.
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
-
-## Who made this
-
-I'm Taoufik. I build AI agents and tools like `/watch`, and I make videos about how I build them: **[@TaoufikAI on YouTube](https://www.youtube.com/@TaoufikAI)**. If this skill saved you time, the channel is where the next ones show up first. [Subscribe here.](https://www.youtube.com/@TaoufikAI?sub_confirmation=1)
+- **No image or video generation.** Output is prompts, not pixels.
+- **Public URLs and local files only.** No auth, no private platforms.
+- **Detector accuracy is ffmpeg's, not this tool's.** The scene threshold occasionally merges near-identical cuts; the report schema is tested against fixed fixtures, the detector is not pinned.
 
 ## Credits
 
-Built on the original `claude-video` project, MIT licensed. Full attribution in [AUTHORS.md](AUTHORS.md) and [LICENSE](LICENSE).
-
-## Open source
-
-MIT license.
-
-Built on `yt-dlp`, `ffmpeg`, and Claude's multimodal `Read` tool. Whisper transcription via [Groq](https://groq.com) or [OpenAI](https://openai.com).
-
----
-
-[github.com/taoufik123-collab/claude-watch](https://github.com/taoufik123-collab/claude-watch) · [Credits](#credits) · [LICENSE](LICENSE)
+Built on [taoufik123-collab/claude-watch](https://github.com/taoufik123-collab/claude-watch) by Taoufik (scene-change extraction, hook microscope, structured report, Obsidian ingest), itself based on [bradautomates/claude-video](https://github.com/bradautomates/claude-video) by Bradley Bonanno (the yt-dlp + ffmpeg + Whisper pipeline). Both MIT; full attribution in [AUTHORS.md](AUTHORS.md) and [LICENSE](LICENSE). This fork adds the per-shot generation brief and the creative-direction framing.

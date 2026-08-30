@@ -1,18 +1,16 @@
 ---
-name: watch
-description: Watch a video (URL or local path) like an editor. Extracts scene-change frames, pacing metrics (cuts/min, shot length), and a dense 0-10s hook microscope; pulls transcript from captions or Whisper. Produces an ingest-ready `report.md` and, after answering the user, optionally auto-ingests the analysis into your Obsidian vault (configurable via `$WATCH_VAULT_DIR`) — tied to *why* the user watched it.
-argument-hint: "<video-url-or-path> [why you're watching it]"
+name: shotlist
+description: Turn a reference video (competitor ad, mood-board clip, dailies) into a per-shot generation brief — one still-image prompt + one motion/camera note per detected cut — for a stills-then-motion pipeline, plus the full editorial analysis (scene-change frames, pacing metrics, 0-10s hook microscope, transcript from captions or Whisper) in an ingest-ready `report.md`. Optional Obsidian auto-ingest (configurable via `$SHOTLIST_VAULT_DIR`, `$WATCH_VAULT_DIR` honored).
+argument-hint: "<video-url-or-path> [why you're studying it]"
 allowed-tools: Bash, Read, AskUserQuestion
-homepage: https://github.com/taoufik123-collab/claude-watch
-repository: https://github.com/taoufik123-collab/claude-watch
-author: taoufik
+author: jeremie
 license: MIT
 user-invocable: true
 ---
 
-# /watch — Claude watches a video
+# /shotlist — a reference video becomes a per-shot generation brief
 
-You don't have a video input; this skill gives you one. A Python script downloads the video, extracts frames as JPEGs (one per detected shot via scene-change), gets a timestamped transcript (native captions first, then Whisper API as fallback), runs editorial pacing metrics, and microscopes the first 10 seconds at higher density. You then `Read` each frame path to see the images, combine them with the transcript to answer the user, fill the structured `report.md`, and offer to ingest the analysis into Taoufik's Second Brain.
+You don't have a video input; this skill gives you one. A Python script downloads the video, extracts frames as JPEGs (one per detected shot via scene-change), gets a timestamped transcript (native captions first, then Whisper API as fallback), runs editorial pacing metrics, and microscopes the first 10 seconds at higher density. You then `Read` each frame path to see the images, combine them with the transcript to answer the user, fill the structured `report.md`, and offer to ingest the analysis into the user's Obsidian vault.
 
 ## What v2 does differently
 
@@ -29,16 +27,16 @@ None of the above add new dependencies — pure ffmpeg + stdlib + the existing W
 
 Steps 4.4 and 4.5 stage the report inside an Obsidian vault so the user can read it where they read everything else. Resolve the vault directory in this order — first hit wins, and the result is what `$VAULT_DIR` refers to everywhere below:
 
-1. **`$WATCH_VAULT_DIR` env var** — if set and the path exists, use it. This is the user-controlled override.
+1. **`$SHOTLIST_VAULT_DIR` env var** — if set and the path exists, use it. This is the user-controlled override. `$WATCH_VAULT_DIR` is honored as a fallback (upstream compat).
 2. **`~/Second brain/`** — if it exists as a directory.
 3. **`~/Documents/Obsidian/`** — if it exists as a directory.
 4. **`~/Obsidian/`** — if it exists as a directory.
-5. **None found** — skip Steps 4.4 and 4.5 entirely. Print one line in chat so the user knows what happened: `📄 Report (no vault detected): <workdir>/report.md`. Suggest they set `WATCH_VAULT_DIR` if they want auto-ingest.
+5. **None found** — skip Steps 4.4 and 4.5 entirely. Print one line in chat so the user knows what happened: `📄 Report (no vault detected): <workdir>/report.md`. Suggest they set `SHOTLIST_VAULT_DIR` if they want auto-ingest.
 
 A quick way to resolve it in bash inside the skill:
 
 ```bash
-VAULT_DIR="${WATCH_VAULT_DIR:-}"
+VAULT_DIR="${SHOTLIST_VAULT_DIR:-${WATCH_VAULT_DIR:-}}"
 if [ -z "$VAULT_DIR" ] || [ ! -d "$VAULT_DIR" ]; then
   for candidate in "$HOME/Second brain" "$HOME/Documents/Obsidian" "$HOME/Obsidian"; do
     if [ -d "$candidate" ]; then VAULT_DIR="$candidate"; break; fi
@@ -48,11 +46,11 @@ fi
 
 The vault's URL-name (for the `obsidian://` URL scheme in Step 4.4) is the final path component — e.g. `$HOME/Second brain` → `Second brain`. URL-encode spaces as `%20`.
 
-## Step 0 — Setup preflight (runs every `/watch` invocation, silent on success)
+## Step 0 — Setup preflight (runs every `/shotlist` invocation, silent on success)
 
 **Python interpreter:** every `python3 ...` command in this skill is for macOS/Linux. On **Windows**, substitute `python` — the `python3` command on Windows is the Microsoft Store stub and will not run the script.
 
-Before every `/watch` run, verify that dependencies and an API key are in place:
+Before every `/shotlist` run, verify that dependencies and an API key are in place:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/setup.py" --check
@@ -80,13 +78,13 @@ On macOS with Homebrew, it auto-installs `ffmpeg` and `yt-dlp`. On Linux/Windows
 
 **Structured mode (optional):** `python3 "${CLAUDE_SKILL_DIR}/scripts/setup.py" --json` emits `{status, first_run, missing_binaries, whisper_backend, has_api_key, config_file, platform}` where `status` is one of `ready | needs_install | needs_key | needs_install_and_key`. Use this when you need to branch on specifics (e.g. "is this the user's very first run?" → `first_run: true`).
 
-Within a single session, you can skip Step 0 on follow-up `/watch` calls — once `--check` returned 0, nothing about the environment changes between turns.
+Within a single session, you can skip Step 0 on follow-up `/shotlist` calls — once `--check` returned 0, nothing about the environment changes between turns.
 
 ## When to use
 
 - User pastes a video URL (YouTube, Vimeo, X, TikTok, Twitch clip, most yt-dlp-supported sites) and asks about it.
 - User points at a local video file (`.mp4`, `.mov`, `.mkv`, `.webm`, etc.) and asks about it.
-- User types `/watch <url-or-path> [question]`.
+- User types `/shotlist <url-or-path> [question]`.
 
 ## Recommended limits
 
@@ -101,7 +99,7 @@ Within a single session, you can skip Step 0 on follow-up `/watch` calls — onc
 
 ## How to invoke
 
-**Step 1 — parse the user input.** Separate the video source from any question the user asked. The question (or the user's prior stated interest) IS the intent — pass it to the script via `--intent`. Example: `/watch https://youtu.be/abc what's the hook pattern?` → source = `https://youtu.be/abc`, intent = `what's the hook pattern?`. If no question is given, use a brief inferred intent ("general summary") so the report's TL;DR has a lens. The intent shapes how the report's TL;DR and entity/concept sections get filled at Step 4 — same video with intent "pricing tactics" vs "editing style" produces different reports.
+**Step 1 — parse the user input.** Separate the video source from any question the user asked. The question (or the user's prior stated interest) IS the intent — pass it to the script via `--intent`. Example: `/shotlist https://youtu.be/abc what's the hook pattern?` → source = `https://youtu.be/abc`, intent = `what's the hook pattern?`. If no question is given, use a brief inferred intent ("general summary") so the report's TL;DR has a lens. The intent shapes how the report's TL;DR and entity/concept sections get filled at Step 4 — same video with intent "pricing tactics" vs "editing style" produces different reports.
 
 **Step 2 — run the watch script.** Pass the source verbatim. Do not shell-escape it yourself beyond normal quoting:
 
@@ -187,14 +185,14 @@ When `$VAULT_DIR` resolves:
    VAULT_NAME=$(basename "$VAULT_DIR" | sed 's/ /%20/g')
    open "obsidian://open?vault=${VAULT_NAME}&file=raw/watched/<slug>/report.md"
    ```
-   The `file=` value is the path relative to the vault root, no leading slash. Don't ask permission — the user has already opted in by running /watch.
+   The `file=` value is the path relative to the vault root, no leading slash. Don't ask permission — the user has already opted in by running /shotlist.
 5. **Echo the vault-relative path in chat** on its own line: `📄 Report (open in Obsidian): raw/watched/<slug>/report.md`. So if Obsidian was closed / the URL handler missed, the user can still navigate to it manually inside the vault.
 
-Rationale: the report is the leverage point of /watch. If the user reads everything in Obsidian, opening in Preview or VS Code defeats the purpose. Staging at 4.4 also means Step 4.5's "Yes / Stage" branches are no-ops on the copy step (the file is already in the vault); they only differ in whether the Ingest op runs.
+Rationale: the report is the leverage point of /shotlist. If the user reads everything in Obsidian, opening in Preview or VS Code defeats the purpose. Staging at 4.4 also means Step 4.5's "Yes / Stage" branches are no-ops on the copy step (the file is already in the vault); they only differ in whether the Ingest op runs.
 
 **Cleanup implication for Step 4.5:** if the user picks "No, drop it" at 4.5 AND a vault was staged at 4.4, ALSO `rm -rf "$VAULT_DIR/raw/watched/<slug>"` since we pre-staged. Do NOT drop the vault copy if they picked Yes or Stage.
 
-**Step 4.5 — Offer ingest into the Obsidian vault.** **Skip this step entirely if no vault was detected at Step 4.4.** Otherwise use `AskUserQuestion` once, with these options (do NOT skip if a vault was found unless the user explicitly said "don't ingest" before /watch ran):
+**Step 4.5 — Offer ingest into the Obsidian vault.** **Skip this step entirely if no vault was detected at Step 4.4.** Otherwise use `AskUserQuestion` once, with these options (do NOT skip if a vault was found unless the user explicitly said "don't ingest" before /shotlist ran):
 
 > **Question:** "Want to ingest this into your Obsidian vault?"
 > - **Yes — same angle** ("<intent>")
@@ -220,9 +218,9 @@ Routing based on response:
 
 **C. No, drop it:** proceed to Step 5 (cleanup) — and per the cleanup-implication note in Step 4.4, `rm -rf "$VAULT_DIR/raw/watched/<slug>"` to undo the pre-staging.
 
-The "different angle" path is what makes /watch truly plug-and-play — the user can watch a video for one reason, then on the way out decide it's actually more useful for a different concept, and the resulting wiki entry reframes accordingly.
+The "different angle" path is what makes /shotlist truly plug-and-play — the user can watch a video for one reason, then on the way out decide it's actually more useful for a different concept, and the resulting wiki entry reframes accordingly.
 
-**Step 5 — clean up.** The script prints a working directory at the end. If you ingested (Step 4.5 path A), the hero frames + report.md are already copied to Second Brain — you can `rm -rf` the original workdir. If you staged (path B), same — the workdir copy is no longer needed. If the user picked "no, drop it" (path C) and isn't going to ask follow-ups, delete with `rm -rf <dir>`. If they might ask follow-ups, leave it in place.
+**Step 5 — clean up.** The script prints a working directory at the end. If you ingested (Step 4.5 path A), the hero frames + report.md are already copied into the vault — you can `rm -rf` the original workdir. If you staged (path B), same — the workdir copy is no longer needed. If the user picked "no, drop it" (path C) and isn't going to ask follow-ups, delete with `rm -rf <dir>`. If they might ask follow-ups, leave it in place.
 
 ## Transcription
 
@@ -242,10 +240,10 @@ Both keys live in `~/.config/watch/.env`. The script prefers Groq when both are 
 - **Long video warning printed** → acknowledge it in your answer. Offer to re-run focused on a specific section via `--start`/`--end` rather than a sparse full-video scan.
 - **Download fails** → yt-dlp's error goes to stderr. If it's a login-required or region-locked video, tell the user plainly; do not keep retrying.
 - **Whisper request fails** → the error is printed to stderr (likely: invalid key, rate limit, or 25 MB upload limit on a very long video). The report will say "none available" for transcript. You can retry with `--whisper openai` if Groq failed (or vice versa).
-- **Report has unfilled `<!-- pending Claude fill: ... -->` markers** → you skipped Step 4. Go back, read the report, fill every marker via Edit, then offer ingest. Never ingest a half-filled report — the Second Brain Ingest op will produce sparse/wrong entity pages.
+- **Report has unfilled `<!-- pending Claude fill: ... -->` markers** → you skipped Step 4. Go back, read the report, fill every marker via Edit, then offer ingest. Never ingest a half-filled report — the vault Ingest op will produce sparse/wrong entity pages.
 - **Shot prompts section says frames were uniform-sampled** → the source had no detectable cuts (static/screen-recorded), so per-shot boundaries don't exist and prompts cover hero frames only. That is correct behavior, not an error — tell the user; if they need denser coverage for generation, re-run focused on the range they care about.
 - **Shot prompts section is missing but the user wants generation prompts** → the run used `--no-shot-prompts`. Re-run without the flag (or, if frames + transcript are still in context, append the section by hand following the schema above rather than re-downloading).
-- **Ingest fails partway** → do not roll back. The Second Brain Ingest op is idempotent on re-run (it updates existing pages rather than duplicating). Tell the user what failed, leave the staged artifact in `raw/watched/<slug>/`, and they can re-run by saying "ingest the staged report at `<slug>`".
+- **Ingest fails partway** → do not roll back. The vault Ingest op is idempotent on re-run (it updates existing pages rather than duplicating). Tell the user what failed, leave the staged artifact in `raw/watched/<slug>/`, and they can re-run by saying "ingest the staged report at `<slug>`".
 
 ## Token efficiency
 
@@ -274,8 +272,8 @@ If you already watched a video this session and the user asks a follow-up, do **
 - Does not access any platform account (no login, no session cookies, no posting)
 - Does not share API keys between providers (Groq key only goes to `api.groq.com`, OpenAI key only goes to `api.openai.com`)
 - Does not log, cache, or write API keys to stdout, stderr, or output files
-- Does not persist anything outside the working directory and `~/.config/watch/.env` (and Second Brain when ingest is consented to) — clean up the working directory when you're done (Step 5)
-- Does not write to the Second Brain without explicit user consent at the Step 4.5 prompt
+- Does not persist anything outside the working directory and `~/.config/watch/.env` (and the Obsidian vault when ingest is consented to) — clean up the working directory when you're done (Step 5)
+- Does not write into the vault without explicit user consent at the Step 4.5 prompt
 - Does not silently overwrite wiki claims — contradictions surface as WARN flags per the Ingest op contract
 
 **Bundled scripts:** `scripts/watch.py` (entry point), `scripts/download.py` (yt-dlp wrapper), `scripts/frames.py` (ffmpeg uniform + scene-change extraction + hero selection), `scripts/pacing.py` (editorial metrics), `scripts/hook.py` (0-10s microscope), `scripts/report.py` (structured report emitter), `scripts/transcribe.py` (caption selection + Whisper orchestration), `scripts/whisper.py` (Groq / OpenAI clients, supports word-level timestamps), `scripts/setup.py` (preflight + installer)

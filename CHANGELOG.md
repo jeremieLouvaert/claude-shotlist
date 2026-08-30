@@ -1,6 +1,19 @@
 # Changelog
 
-All notable changes to `/watch` are documented here.
+All notable changes are documented here. (Through 0.3.0 this project was `/watch`.)
+
+## [0.4.0] — 2026-08-30
+
+Identity: the fork ships as **`/shotlist`** (repo: claude-shotlist), a creative-direction tool, no longer claiming the upstream `/watch` name. Runtime pipeline (`scripts/*.py`) is untouched — byte-identical to 0.3.0.
+
+### Changed
+- Skill/command/plugin renamed `watch` → `shotlist` across SKILL.md frontmatter, `commands/shotlist.md`, `.claude-plugin/`, `.codex-plugin/`, hooks status lines, and the `.skill` build (`dist/shotlist.skill`).
+- README rewritten around the creative-direction workflow (reference video → per-shot brief → stills-then-motion generation); analysis features documented as riding along.
+- Vault override: `$SHOTLIST_VAULT_DIR` preferred, `$WATCH_VAULT_DIR` honored as fallback.
+- `homepage`/`repository` metadata removed until the fork has a published home.
+
+### Kept for compatibility
+- `~/.config/watch/.env` config path, `raw/watched/` vault staging path, `$WATCH_VAULT_DIR`, and all `scripts/*.py` internals (including `[watch]` stderr prefixes and `prog="watch"`).
 
 ## [0.3.0] — 2026-08-30
 

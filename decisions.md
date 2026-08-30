@@ -87,3 +87,36 @@ validated by running it and recording what the instrument actually returns
 — per-cut detection accuracy is the detector's property, not this fork's,
 and pinning exact detector output would make the tests break on ffmpeg
 upgrades for reasons unrelated to the report logic.
+
+
+## 2026-08-30 — Identity: /shotlist, interface-level only
+
+**Call (Jérémie's, this session): the fork ships under its own name** —
+command `/shotlist`, repo `claude-shotlist` — and the README is rewritten
+around the creative-direction use case rather than staying additive. Upstream
+`/watch` keeps its name and its story; this tool's story is the per-shot brief.
+
+**Depth of the rename: interface, not runtime.** SKILL.md, `commands/`,
+`.claude-plugin/`, `.codex-plugin/`, hook status lines, build artifact
+(`dist/shotlist.skill`) and README carry the new identity. `scripts/*.py` are
+byte-identical to 0.3.0 — `[watch]` stderr prefixes, `prog="watch"`,
+`~/.config/watch/.env`, the `watch-` tempdir prefix and the `raw/watched/`
+vault staging path all stay. Rationale: the 0.3.0 contract ("existing behavior
+untouched") extends naturally to "runtime untouched by a naming pass"; config
+and staging paths are compat surfaces users may already have; and keeping the
+runtime diff against upstream at exactly one commit's worth of features makes
+future upstream merges tractable. Cosmetic string renames inside scripts are
+deferred until a functional change touches those files anyway.
+
+**Vault env var:** `$SHOTLIST_VAULT_DIR` preferred, `$WATCH_VAULT_DIR` honored
+as fallback — resolution is a SKILL.md instruction, not code, so the compat
+shim costs one line.
+
+**No invented URLs.** The fork has no published GitHub home yet, so
+`homepage`/`repository` fields were removed from SKILL.md frontmatter and both
+plugin manifests rather than pointed at upstream (misdirecting) or at a
+guessed username (fiction). README install section says "not yet published"
+and uses `<this-repo>` placeholders. To restore when the repo is created.
+
+**Remote/folder:** `origin` renamed to `upstream` (we cannot push to
+taoufik's repo); working folder renamed `CanvasCamp/claude-shotlist`.

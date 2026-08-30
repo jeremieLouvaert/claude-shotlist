@@ -1,8 +1,10 @@
 {
-  "name": "watch",
-  "version": "0.2.0",
-  "description": "Let Claude (or Codex) watch a video — scene-change frames + transcript + structured report, with a 0-10s hook microscope and optional Obsidian auto-save.",
-  "repository": "https://github.com/taoufik123-collab/claude-watch",
-  "author": "taoufik",
-  "license": "MIT"
+  "name": "shotlist",
+  "version": "0.4.0",
+  "description": "Turn a reference video into a per-shot generation brief: one still-image prompt + one motion/camera note per detected cut, for a stills-then-motion pipeline — plus scene-change frames, a 0-10s hook microscope, captions-or-Whisper transcript, and a structured report.md.",
+  "author": {
+    "name": "jeremie"
+  },
+  "license": "MIT",
+  "keywords": ["video", "shotlist", "shot-prompts", "creative-direction", "image-generation", "storyboard", "transcription", "whisper", "yt-dlp", "ffmpeg", "multimodal", "frames"]
 }

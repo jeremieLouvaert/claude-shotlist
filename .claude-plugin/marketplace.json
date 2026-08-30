@@ -1,21 +1,20 @@
 {
-  "name": "claude-watch",
+  "name": "claude-shotlist",
   "metadata": {
-    "description": "Give Claude a video input. /watch downloads, extracts scene-change frames, microscopes the 0-10s hook, transcribes, and optionally auto-saves to your Obsidian vault."
+    "description": "Give Claude a reference video. /shotlist extracts scene-change frames and a transcript, then emits a per-shot generation brief (still-image prompt + motion note per cut) alongside the full editorial analysis."
   },
   "owner": {
-    "name": "taoufik"
+    "name": "jeremie"
   },
   "plugins": [
     {
-      "name": "watch",
-      "description": "Watch a video (URL or local path). Downloads with yt-dlp, extracts scene-change frames with ffmpeg, runs a 0-10s hook microscope, transcribes via captions or Whisper, emits a structured report.md, optional Obsidian auto-save.",
+      "name": "shotlist",
+      "description": "Shot-list a video (URL or local path). Downloads with yt-dlp, extracts scene-change frames with ffmpeg, transcribes via captions or Whisper, emits a structured report.md with one image prompt + one motion note per shot, optional Obsidian auto-save.",
       "author": {
-        "name": "taoufik"
+        "name": "jeremie"
       },
       "source": "./",
-      "category": "productivity",
-      "homepage": "https://github.com/taoufik123-collab/claude-watch"
+      "category": "productivity"
     }
   ]
 }

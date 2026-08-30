@@ -47,3 +47,33 @@ boundaries) — recorded as measured instrument behavior rather than
   when the fork's identity/naming is decided).
 - No decision yet on whether the fork keeps the `/watch` name or ships as
   a separate command; upstream plugin metadata untouched.
+
+
+## 2026-08-30 — Identity pass: /watch → /shotlist
+
+**Done.**
+
+- Naming decided (Jérémie, via question): rename command + repo, README
+  rewritten around the creative-direction use case. Name: **/shotlist**,
+  repo **claude-shotlist**.
+- Interface-level rename only — scripts/*.py byte-identical to 0.3.0
+  (see decisions.md for the depth call and the compat surfaces kept:
+  `~/.config/watch/.env`, `raw/watched/`, `$WATCH_VAULT_DIR` fallback).
+- Touched: SKILL.md (frontmatter name/description/author, title, all
+  command references, vault-var resolution, de-personalized "Taoufik's
+  Second Brain" phrasing), commands/watch.md → commands/shotlist.md,
+  .claude-plugin/{plugin,marketplace}.json, .codex-plugin/plugin.json
+  (all 0.4.0), hooks/scripts/check-setup.sh status lines,
+  scripts/build-skill.sh + release.yml (dist/shotlist.skill), README
+  (full rewrite: per-shot brief lead, stills-then-motion pipeline,
+  unpublished-install note, credits kept), AUTHORS.md (fork section),
+  CHANGELOG 0.4.0.
+- Verified: scripts/ untouched vs 0.3.0 (git diff empty for runtime
+  files), 12/12 tests OK, JSON manifests parse.
+
+**Pending (unchanged).**
+
+- Real-video validation of prompt-fill quality — still the next
+  substantive step; needs yt-dlp or real footage.
+- GitHub publication: create the claude-shotlist repo, restore
+  homepage/repository fields, replace README `<this-repo>` placeholders.

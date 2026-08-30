@@ -20,12 +20,12 @@ jobs:
       - name: Build .skill artifact
         run: |
           bash scripts/build-skill.sh
-          test -f dist/watch.skill
+          test -f dist/shotlist.skill
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/watch.skill
+          files: dist/shotlist.skill
           generate_release_notes: true
           draft: false
           prerelease: false
