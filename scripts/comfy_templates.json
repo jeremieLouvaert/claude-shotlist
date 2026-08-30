@@ -698,5 +698,75 @@
   "widgets_values": [
    0
   ]
+ },
+ "WirelessGet": {
+  "id": 1146,
+  "type": "WirelessGet",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   270,
+   58
+  ],
+  "flags": {},
+  "order": 0,
+  "mode": 0,
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "value",
+    "type": "*",
+    "links": []
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfyui-wireless-link-simple",
+   "ver": "5a94301d1d04c73c7414f13f84f8dff424a579e2",
+   "Node name for S&R": "WirelessGet"
+  },
+  "widgets_values": [
+   "channel"
+  ]
+ },
+ "WirelessSend": {
+  "id": 1125,
+  "type": "WirelessSend",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   270,
+   58
+  ],
+  "flags": {},
+  "order": 54,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "value",
+    "type": "*",
+    "link": 1406
+   }
+  ],
+  "outputs": [
+   {
+    "name": "passthrough",
+    "type": "*",
+    "links": [
+     1491
+    ]
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfyui-wireless-link-simple",
+   "ver": "5a94301d1d04c73c7414f13f84f8dff424a579e2",
+   "Node name for S&R": "WirelessSend"
+  },
+  "widgets_values": [
+   "channel"
+  ]
  }
 }

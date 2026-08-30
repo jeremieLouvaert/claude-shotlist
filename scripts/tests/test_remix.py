@@ -103,8 +103,12 @@ class TestRemix(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)), "node ids must be unique")
         from collections import Counter
         counts = Counter(n["type"] for n in w["nodes"])
-        # 2 shots: 4 LoadImage each (ref, approved-first, video first/last)
-        self.assertEqual(counts["LoadImage"], 2 * 4)
+        # 2 shots: 1 LoadImage each (the reference frame; picks flow wirelessly)
+        self.assertEqual(counts["LoadImage"], 2 * 1)
+        # wireless: 4 sends per shot (2 halves x 2 engines, shared channel),
+        # 3 gets per shot (stills pass-2 conditioning + video first/last)
+        self.assertEqual(counts["WirelessSend"], 2 * 4)
+        self.assertEqual(counts["WirelessGet"], 2 * 3)
         # every generation branch is wrapped in the hash-vault triad:
         # per shot 2 halves x 2 stills engines + 2 video engines = 6 triads
         for t in ("DeterministicHashVault", "HashVaultSave", "LazyAPISwitch"):
@@ -122,35 +126,39 @@ class TestRemix(unittest.TestCase):
             self.assertIn(lid, byid[src]["outputs"][oslot]["links"])
             self.assertEqual(byid[dst]["inputs"][islot]["link"], lid)
         self.assertEqual(w["last_node_id"], max(ids))
-        # savers must consume the vault switch, not the raw gen node
+        # image savers consume the wireless send's passthrough (his pattern);
+        # video savers consume the vault switch
         for n in w["nodes"]:
             if n["type"] in ("SaveImage", "SaveVideo"):
                 lid = n["inputs"][0]["link"]
                 src = next(l for l in w["links"] if l[0] == lid)[1]
-                self.assertEqual(byid[src]["type"], "LazyAPISwitch")
+                expect = "WirelessSend" if n["type"] == "SaveImage" else "LazyAPISwitch"
+                self.assertEqual(byid[src]["type"], expect)
 
-    def test_last_frame_conditioned_on_approved_first(self):
+    def test_last_frame_wireless_chained_from_first(self):
         w = self._emit()
         byid = {n["id"]: n for n in w["nodes"]}
         linkmap = {l[0]: l for l in w["links"]}
         def src_of(node, in_name):
             link = next(i["link"] for i in node["inputs"] if i["name"] == in_name)
             return byid[linkmap[link][1]]
+        firsts, lasts = 0, 0
         for n in w["nodes"]:
             if n["type"] != "GeminiImage2Node":
                 continue
             cond = src_of(n, "images")
-            self.assertEqual(cond["type"], "LoadImage")
-            save_prefixes = []
-            for l in w["links"]:
-                if l[1] == n["id"]:
-                    dst = byid[l[3]]
-                    if dst["type"] == "HashVaultSave":
-                        save_prefixes.append(dst)
-            fname = cond["widgets_values"][0]
-            # first-frame gens condition on the reference; last-frame gens on the
-            # approved first still
-            self.assertTrue(fname.endswith("_ref.jpg") or fname.endswith("_first.png"))
+            if cond["type"] == "LoadImage":
+                self.assertTrue(cond["widgets_values"][0].endswith("_ref.jpg"))
+                firsts += 1
+            else:
+                self.assertEqual(cond["type"], "WirelessGet")
+                self.assertTrue(cond["widgets_values"][0].endswith("_first"))
+                lasts += 1
+        self.assertEqual((firsts, lasts), (2, 2))
+        # sends per shot share the channel: shotNN_first from both engines
+        chans = sorted(n["widgets_values"][0] for n in w["nodes"] if n["type"] == "WirelessSend")
+        self.assertEqual(chans, ["shot01_first", "shot01_first", "shot01_last", "shot01_last",
+                                 "shot02_first", "shot02_first", "shot02_last", "shot02_last"])
 
     def test_vault_keyed_on_prompt_and_conditioning(self):
         w = self._emit()
@@ -214,11 +222,10 @@ class TestRemix(unittest.TestCase):
             self.assertIsNotNone(wired["model.images.image_2"])
             self.assertIsNotNone(wired["model.prompt"])
             self.assertNotEqual(wired["model.images.image_1"], wired["model.images.image_2"])
-        loads = sorted(n["widgets_values"][0] for n in w["nodes"]
-                       if n["type"] == "LoadImage" and "_ref" not in n["widgets_values"][0])
-        # shotNN_first.png appears twice: stills pass-2 conditioning + video input
-        self.assertEqual(loads, ["shot01_first.png", "shot01_first.png", "shot01_last.png",
-                                 "shot02_first.png", "shot02_first.png", "shot02_last.png"])
+        gets = sorted(n["widgets_values"][0] for n in w["nodes"] if n["type"] == "WirelessGet")
+        # shotNN_first appears twice: stills pass-2 conditioning + video input
+        self.assertEqual(gets, ["shot01_first", "shot01_first", "shot01_last",
+                                "shot02_first", "shot02_first", "shot02_last"])
 
     def test_gpt_stills_engine_active_when_selected(self):
         w = self._emit(stills_engine="gpt")

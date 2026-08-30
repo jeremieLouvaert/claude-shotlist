@@ -139,7 +139,7 @@ def write_remix(workdir: Path, brief: str, aspect: str) -> Path:
         "`first_frame_prompt` is an INSTRUCTION AGAINST THE REFERENCE FRAME",
         "(\"replace the horses with…\", \"reframe to 16:9 extending the",
         "landscape…\"). `last_frame_prompt` is an instruction against the",
-        "APPROVED FIRST FRAME — the still you pick becomes its conditioning",
+        "GENERATED FIRST FRAME — it is wireless-chained in as the conditioning",
         "image, so describe only what changes by the end of the shot; that is",
         "what keeps subjects consistent within a shot. `video_prompt` drives",
         "the video model between the locked frames — motion, not look._",
@@ -167,9 +167,9 @@ def write_remix(workdir: Path, brief: str, aspect: str) -> Path:
                 "transposed subject, target aspect reframe; opening state of the shot"
             ),
             "- **last_frame_prompt:** " + _pending(
-                "instruction against the APPROVED FIRST FRAME (it is the "
-                "conditioning image, not the reference): what moved, arrived or "
-                "changed by the END of the shot; keep everything else identical"
+                "instruction against the GENERATED FIRST FRAME (wireless-chained in "
+                "as the conditioning image, not the reference): what moved, "
+                "arrived or changed by the END of the shot; keep the rest identical"
             ),
             "- **video_prompt:** " + _pending(
                 "motion between the two locked frames for Seedance: camera move, "
@@ -299,14 +299,14 @@ def _vaulted(g: "Graph", gen: dict, out_name: str, prompt_node: dict,
              mode: int) -> dict:
     """Wrap a generation node in the hash-vault caching triad
     (DeterministicHashVault -> HashVaultSave -> LazyAPISwitch), keyed on the
-    prompt string plus the conditioning image(s). Returns the LazyAPISwitch
-    whose final_output downstream savers should consume."""
+    prompt string plus the conditioning inputs (as (node, out_name) pairs).
+    Returns the LazyAPISwitch whose final_output downstream consumers use."""
     dhv = g.add("DeterministicHashVault", [xv, y], mode=mode)
     hvs = g.add("HashVaultSave", [xv, y + 170], mode=mode)
     las = g.add("LazyAPISwitch", [xs - 420, y + 60], mode=mode)
     g.link(prompt_node, "STRING", dhv, "payload_string")
-    for i, img in enumerate(cond_imgs[:4]):
-        g.link(img, "IMAGE", dhv, "any_input" if i == 0 else f"any_input_{i + 1}")
+    for i, (img, img_out) in enumerate(cond_imgs[:4]):
+        g.link(img, img_out, dhv, "any_input" if i == 0 else f"any_input_{i + 1}")
     g.link(dhv, "hash_key", hvs, "hash_key")
     g.link(gen, out_name, hvs, "api_output")
     g.link(dhv, "cached_data", las, "cached_data")
@@ -329,13 +329,15 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         nn = f"shot{s['n']:02d}"
 
         # ---- stills pass 1: FIRST frame from the reference; pass 2: LAST frame
-        # conditioned on the APPROVED first frame (shotNN_first.png), so the
-        # transposed subjects stay consistent within the shot.
+        # conditioned on the generated first frame, received over a wireless
+        # channel — no file round-trip, subjects stay consistent within the shot.
+        # Both engines send on the same channel; only the unmuted one fires.
         ref = g.add("LoadImage", [SCOL[0], y],
                     {LOADIMAGE_W_FILE: f"{nn}_ref{Path(s['frame']).suffix}"})
-        approved_first = g.add("LoadImage", [SCOL[0], y + HALF_DY],
-                               {LOADIMAGE_W_FILE: f"{nn}_first.png"})
-        for half, (key, cond) in enumerate((("first", ref), ("last", approved_first))):
+        first_get = g.add("WirelessGet", [SCOL[0], y + HALF_DY],
+                          {0: f"{nn}_first"})
+        for half, (key, cond, cond_out) in enumerate(
+                (("first", ref, "IMAGE"), ("last", first_get, "value"))):
             hy = y + half * HALF_DY
             prompt_text = s[key] + (f"\n\nStyle: {style}" if style else "")
             p = g.add("PrimitiveStringMultiline", [SCOL[1], hy],
@@ -349,35 +351,40 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
                           GEMINI_W_ASPECT: aspect,
                           GEMINI_W_SEED: 1000 * s["n"] + half},
                          mode=nano_mode)
-            g.link(cond, "IMAGE", nano, "images")
+            g.link(cond, cond_out, nano, "images")
             g.link(p, "STRING", nano, "prompt")
-            nano_out = _vaulted(g, nano, "IMAGE", p, [cond],
+            nano_out = _vaulted(g, nano, "IMAGE", p, [(cond, cond_out)],
                                 SCOL[3], SCOL[4], hy, nano_mode)
-            nano_save = g.add("SaveImage", [SCOL[4], hy],
+            nano_send = g.add("WirelessSend", [SCOL[4], hy],
+                              {0: f"{nn}_{key}"}, mode=nano_mode)
+            g.link(nano_out, "final_output", nano_send, "value")
+            nano_save = g.add("SaveImage", [SCOL[4] + 320, hy],
                               {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}_nano"},
                               mode=nano_mode)
-            g.link(nano_out, "final_output", nano_save, "images")
+            g.link(nano_send, "passthrough", nano_save, "images")
 
             gpt = g.add("OpenAIGPTImageNodeV2", [SCOL[2], hy + ENG_DY],
                         {GPT_W_WIDTH: gw, GPT_W_HEIGHT: gh},
                         mode=gpt_mode)
-            g.link(cond, "IMAGE", gpt, "model.images.image_1")
+            g.link(cond, cond_out, gpt, "model.images.image_1")
             g.link(p, "STRING", gpt, "prompt")
-            gpt_out = _vaulted(g, gpt, "IMAGE", p, [cond],
+            gpt_out = _vaulted(g, gpt, "IMAGE", p, [(cond, cond_out)],
                                SCOL[3], SCOL[4], hy + ENG_DY, gpt_mode)
-            gpt_save = g.add("SaveImage", [SCOL[4], hy + ENG_DY],
+            gpt_send = g.add("WirelessSend", [SCOL[4], hy + ENG_DY],
+                             {0: f"{nn}_{key}"}, mode=gpt_mode)
+            g.link(gpt_out, "final_output", gpt_send, "value")
+            gpt_save = g.add("SaveImage", [SCOL[4] + 320, hy + ENG_DY],
                              {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}_gpt"},
                              mode=gpt_mode)
-            g.link(gpt_out, "final_output", gpt_save, "images")
+            g.link(gpt_send, "passthrough", gpt_save, "images")
 
-        g.group(f"Shot {s['n']} — STILLS: pass 1 first from ref, pass 2 last "
-                f"from approved first (unmute one engine)",
+        g.group(f"Shot {s['n']} — STILLS: first from ref, last wireless-chained "
+                f"from first (unmute one engine)",
                 [SCOL[0] - 30, y - 60, SCOL[4] + 450, ROW_H - 80])
 
-        # ---- video row: picked stills -> Seedance + Omni, one muted
-        first = g.add("LoadImage", [VCOL[0], y], {LOADIMAGE_W_FILE: f"{nn}_first.png"})
-        last = g.add("LoadImage", [VCOL[0], y + HALF_DY],
-                     {LOADIMAGE_W_FILE: f"{nn}_last.png"})
+        # ---- video row: wireless-chained stills -> Seedance + Omni, one muted
+        first = g.add("WirelessGet", [VCOL[0], y], {0: f"{nn}_first"})
+        last = g.add("WirelessGet", [VCOL[0], y + HALF_DY], {0: f"{nn}_last"})
         vp = g.add("StringConstantMultiline", [VCOL[1], y], {STRING_W_TEXT: s["video"]})
 
         sd_mode = MODE_ACTIVE if video_engine == "seedance" else MODE_MUTED
@@ -386,10 +393,10 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         sd = g.add("ByteDance2FirstLastFrameNode", [VCOL[2], y],
                    {BYTEDANCE_W_MODEL: seedance_model, BYTEDANCE_W_SEED: s["n"]},
                    mode=sd_mode)
-        g.link(first, "IMAGE", sd, "first_frame")
-        g.link(last, "IMAGE", sd, "last_frame")
+        g.link(first, "value", sd, "first_frame")
+        g.link(last, "value", sd, "last_frame")
         g.link(vp, "STRING", sd, "model.prompt")
-        sd_out = _vaulted(g, sd, "VIDEO", vp, [first, last],
+        sd_out = _vaulted(g, sd, "VIDEO", vp, [(first, "value"), (last, "value")],
                           VCOL[3], VCOL[4], y, sd_mode)
         sd_save = g.add("SaveVideo", [VCOL[4], y],
                         {SAVEVIDEO_W_PREFIX: f"remix/{nn}_seedance"}, mode=sd_mode)
@@ -397,10 +404,10 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
 
         omni = g.add("GeminiVideoOmni", [VCOL[2], y + ENG_DY],
                      {OMNI_W_SEED: s["n"]}, mode=omni_mode)
-        g.link(first, "IMAGE", omni, "model.images.image_1")
-        g.link(last, "IMAGE", omni, "model.images.image_2")
+        g.link(first, "value", omni, "model.images.image_1")
+        g.link(last, "value", omni, "model.images.image_2")
         g.link(vp, "STRING", omni, "model.prompt")
-        omni_out = _vaulted(g, omni, "VIDEO", vp, [first, last],
+        omni_out = _vaulted(g, omni, "VIDEO", vp, [(first, "value"), (last, "value")],
                             VCOL[3], VCOL[4], y + ENG_DY, omni_mode)
         omni_save = g.add("SaveVideo", [VCOL[4], y + ENG_DY],
                           {SAVEVIDEO_W_PREFIX: f"remix/{nn}_omni"}, mode=omni_mode)
@@ -452,11 +459,10 @@ def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedan
     print(f"[remix] reference frames: {indir} ({copied} copied)")
     print("[remix] next:")
     print("  1. copy comfy/input/* into ComfyUI's input folder, load remix_workflow.json")
-    print("  2. run section A pass 1: FIRST frames generate from the references")
-    print("  3. pick winners, rename to shotNN_first.png, drop in ComfyUI input")
-    print("  4. run section A pass 2: LAST frames generate FROM the approved firsts (consistency)")
-    print("  5. pick winners, rename to shotNN_last.png, drop in ComfyUI input")
-    print("  6. run section B (VIDEO) — clips land in output/remix/")
+    print("  2. queue ONCE — firsts -> lasts -> videos chain over wireless channels in a single run")
+    print("  3. to redo a branch: tweak its prompt or seed and re-queue; the hash vault")
+    print("     serves every unchanged branch from cache")
+    print("  outputs land in ComfyUI output/remix/ with engine-suffixed prefixes")
 
 
 def main() -> None:

@@ -244,3 +244,34 @@ results when a re-picked first frame reuses an unchanged last-frame
 prompt. This wiring is UNVERIFIED against a live run; if the node can't
 hash image tensors, unplug the any_input links and fall back to
 prompt-only keys.
+
+
+## 2026-08-30 — Wireless chaining replaces the file round-trip (Jérémie's call)
+
+The pick-and-rename gate (`shotNN_first.png` via LoadImage) is replaced by
+his Wireless pattern, wiring read from the captures: every generation
+branch's `LazyAPISwitch.final_output` → `WirelessSend` on channel
+`shotNN_first` / `shotNN_last`; the last-frame generators and the video
+section consume via `WirelessGet` on the same channels. One queue run now
+produces firsts → lasts → videos end-to-end; LoadImage survives only for
+the reference frames. Stills still reach disk through the send's
+passthrough → SaveImage (his own passthrough→Preview pattern, with Save in
+place of Preview).
+
+**Trade, made explicitly:** the human approval gate between passes is
+gone — the last frame chains from whatever pass 1 produced. Curation
+moves to re-queueing: tweak the offending branch's prompt or seed and run
+again; the hash vault serves every unchanged branch from cache, so a redo
+costs one API call, not a re-run of the film.
+
+**Channel semantics:** both engines of a stage send on the same channel
+so the wireless chain survives engine switching without re-emitting — the
+muted engine never fires. Corollary, documented in SKILL.md: exactly one
+stills engine may be unmuted per run; unmuting both makes the channel
+value nondeterministic.
+
+**Instrument note:** the first emit crashed on a StopIteration — the
+conditioning loop in `_vaulted` shadowed the `out_name` parameter, so the
+gen→HashVaultSave link asked GeminiImage2Node for a "value" output. The
+graph-integrity tests caught it before any workflow shipped; loop
+variable renamed.
