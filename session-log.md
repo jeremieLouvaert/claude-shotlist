@@ -255,3 +255,26 @@ live ComfyUI — the one verification only Jérémie's install can provide.
 generation quality = the real gate); push (now 6 commits ahead); tag
 v0.5.0 when validated; letterbox cropdetect + cosmos resolver still open
 0.5.x candidates.
+
+
+## 2026-08-30 — 0.5.0 validated live in ComfyUI; ready to publish
+
+**Done.** The full remix chain ran clean in Jérémie's ComfyUI (local
+portable, F: drive, 0.34.2): stills generated, wireless chaining held,
+and after the Seedance 2.5 widget fix the video section ran too —
+"it works!". Iterations this session, each from a live test error:
+consistency chaining (last from generated first), hash-vault caching,
+wireless channels replacing file round-trips, overlap-free layout from
+measured node sizes with colored sections, and the Seedance 2.5 layout
+taken from the running server's `/object_info` (the schema authority
+captures can't be — logged in decisions.md and cross-session memory).
+`--comfy-input` now copies refs straight into ComfyUI's input.
+
+**State.** 22/22 tests. CHANGELOG 0.5.0 finalized; v0.5.0 tagged at this
+commit. Push is Jérémie's: `git push origin main` + `git push origin
+v0.5.0` (tag push triggers the release build). Installed clone at
+`~/.claude/skills/shotlist` synced.
+
+**Open.** Letterbox cropdetect + cosmos.so resolver (0.5.x candidates);
+prompt-fidelity check now cheap to run — the stills exist, compare
+against reference frames when Jérémie wants it.
