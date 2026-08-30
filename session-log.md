@@ -183,3 +183,19 @@ renders, clone-install path works.
   working record — public in the repo anyway, not worth a re-release).
 - Optional: prompt-fidelity check (generate from an image_prompt,
   compare to source frame) — needs an image generator.
+
+## 2026-08-30 — Install-path test: fresh clone, real run on CanvasCamp's own footage
+
+**Done.** Cloned the published repo (origin tip 8373418) into scratchpad and ran
+it as a user would: CanvasCamp's "Bell Tent Fly: How to set up the All Purpose
+Fly" (103s, youtube lKX6J8NRasg). Pipeline clean: 25 scene-change shots, 20 hook
+frames, 60 markers emitted and all filled; 0 left, UTF-8 clean. New paths
+exercised vs the Coleman run: 1-3min budget tier, no-captions degrade (silent
+video — overlays carry the steps), long-tail shots (19.3s and 17.2s uncut).
+
+**Observed.** (1) Numbered step overlays land mid-shot, so scene sampling caught
+steps 1/4/7-10 but skipped 2-3/5-6 — text-overlay tutorials shed information
+that cut-aligned sampling can't see; noted honestly in the report's quotables.
+(2) The 17s closing shot is briefed only to its first beat — a still can't
+evidence how an uncut tail resolves; marked unverified in the motion_note.
+Workdir: watch-g4n8z01h (temp, not committed).
