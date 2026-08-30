@@ -120,3 +120,31 @@ and uses `<this-repo>` placeholders. To restore when the repo is created.
 
 **Remote/folder:** `origin` renamed to `upstream` (we cannot push to
 taoufik's repo); working folder renamed `CanvasCamp/claude-shotlist`.
+
+
+## 2026-08-30 — Measured: letterboxed sources under-score scene detection
+
+On a real 9:16 Instagram reel whose picture occupies a ~4:5 window inside
+a black canvas (static caption overlay), ffmpeg's `gt(scene,0.3)` fired
+zero times across ~9 true hard cuts. Measured directly on the downloaded
+file: every cut scored 0.09–0.15, because the scene score is computed
+over the whole frame and the unchanging letterbox + caption pixels
+dilute it below threshold. The uniform fallback then engaged and the
+report correctly declared hero-only prompts — documented degrade, wrong
+diagnosis in the emitted note ("static or screen-recorded source").
+
+Recorded as instrument behavior, not fixed. Candidate for 0.5.0:
+detect letterbox (ffmpeg `cropdetect`) and crop before scene scoring,
+and/or soften the fallback note to name letterboxing as a possible
+cause. Threshold tuning alone is the wrong fix — 0.3 is fine on
+full-frame sources, and lowering it globally would over-fire elsewhere.
+
+## 2026-08-30 — Usage note: cosmos.so saves resolve via their og-metadata
+
+cosmos.so element URLs have no yt-dlp extractor (generic extractor
+errors out). The element page's own og/meta block names the original
+post URL (e.g. an Instagram reel), which the pipeline handles normally.
+Until a pre-resolver exists, the operator hop is: fetch the cosmos page,
+read the original-post URL from its metadata, run /shotlist on that.
+Candidate for 0.5.0: a docs line in SKILL.md's failure-modes table, or a
+small resolver in download.py for known moodboard hosts.

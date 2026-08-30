@@ -199,3 +199,33 @@ that cut-aligned sampling can't see; noted honestly in the report's quotables.
 (2) The 17s closing shot is briefed only to its first beat — a still can't
 evidence how an uncut tail resolves; marked unverified in the motion_note.
 Workdir: watch-g4n8z01h (temp, not committed).
+
+
+## 2026-08-30 — Hands-on test via the Skill path: cosmos.so save → Instagram reel
+
+**Done.** First run through the real skill mechanism (installed at
+`~/.claude/skills/shotlist`, invoked as /shotlist in a live session) on a
+video Jérémie threw in: a cosmos.so moodboard save
+(cosmos.so/e/1550931937). Report filled 19/19 markers and staged with
+relative frame links at
+`CanvasCamp-Brain/raw/watched/antonhugo-horse-trek-reel-2026-08-30/`.
+
+**Findings (both candidate 0.5.0 items, logged in decisions.md).**
+
+1. **cosmos.so is not a supported source** — yt-dlp's generic extractor
+   fails on it. The element page's og-metadata names the original post
+   (here an Instagram reel URL, which ran clean). Resolution is a manual
+   hop today; a docs line in SKILL.md's failure-modes table (or a small
+   pre-resolver) would make moodboard saves first-class inputs.
+2. **Letterboxed reels defeat scene-change detection** — measured, not
+   inferred: the 11s reel has ~9 real cuts, every one scoring 0.09–0.15
+   against the 0.3 threshold, because the unchanging black canvas +
+   static caption dilute ffmpeg's whole-frame scene score. The tool
+   degraded exactly as documented (uniform fallback, hero-only prompts,
+   note emitted) — correct behavior, blind rule. Candidate fix:
+   auto-crop detection before scene scoring.
+
+**Also observed.** Vault auto-detect misses `CanvasCamp-Brain` (not on
+the candidate list); `SHOTLIST_VAULT_DIR` suggested to Jérémie. Both
+vault stagings so far were manual copies with paths rewritten relative —
+which is what Step 4.4 does anyway.
