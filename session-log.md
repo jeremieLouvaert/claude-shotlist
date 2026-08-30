@@ -155,3 +155,31 @@ git push origin v0.4.0
 
 Then verify: release appears with `dist/shotlist.skill` attached, README
 renders, clone-install path works.
+
+
+## 2026-08-30 — Published; bundle-strip bug found and fixed
+
+**Done.**
+
+- Jérémie ran the outbound pair; verified from running: repo public,
+  `main` = local tip, release v0.4.0 green with `shotlist.skill`
+  attached — downloaded and unzipped the asset to confirm layout.
+- Adding the requested exclude list (decisions.md, session-log.md,
+  `.codex-plugin/`) exposed that **`zip -d` was a silent no-op wherever
+  Info-ZIP isn't installed** — `|| true` swallowed the missing binary, so
+  a local build shipped *every* excluded path while exiting green (the
+  Actions build only worked because ubuntu has `zip`). The
+  green-without-measuring failure mode, again.
+- Rewrote the strip in Python (`zipfile`), preserving the git-archive
+  commit comment, with a post-strip assertion that no excluded entry
+  survives and a loud error when no python is found. Rebuilt locally:
+  17 files, excluded paths gone. Commits 7c59f95 + d03007b.
+
+**Pending.**
+
+- `main` is 2 commits ahead of origin — the push is Jérémie's
+  (guardrail). Next tag (v0.4.1 or later) will carry the leaner bundle;
+  the v0.4.0 release asset stays as built (21 files, includes the
+  working record — public in the repo anyway, not worth a re-release).
+- Optional: prompt-fidelity check (generate from an image_prompt,
+  compare to source frame) — needs an image generator.
