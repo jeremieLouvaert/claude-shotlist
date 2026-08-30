@@ -167,6 +167,7 @@ Then, **fill in the pending markers in `report.md` using the Edit tool**. Walk e
 - **Shot prompts** (unless `--no-shot-prompts` was passed) — two fields per `### Shot` entry, written from the frame image at that timestamp plus the transcript around it:
   - `image_prompt` — a still-image generation prompt for that exact frame: subject, composition, camera angle/lens feel, lighting, color grade, material/texture cues. Write it the way a director briefs a stills artist, not a caption. Concrete nouns and light, no plot summary.
   - `motion_note` — 1-2 lines on camera movement and pacing into/out of that shot (the `~Xs to next cut` figure in the heading is the shot's real length — respect it), for the motion pass once the still is locked.
+  - Two lessons from real-footage runs: a scene frame is grabbed at the cut, so it can catch a title or graphic mid-animation — check `hook_frames/` (or the neighbouring shots) for the settled version before describing it. And a single still cannot show camera motion — infer `motion_note` from motion blur, perspective and the neighbouring frames, and say in the note when the move is a guess rather than legible in the frame.
 - **Quotable moments** — top 3-5 punchy, standalone lines from the transcript
 - **Entities mentioned** — people, companies, tools, places — formatted to match wiki/entities/ slugs (kebab-case, lowercase). Use `[[wikilink]]` style.
 - **Concepts surfaced** — frameworks, mental models, named patterns — short gist each

@@ -77,3 +77,54 @@ boundaries) — recorded as measured instrument behavior rather than
   substantive step; needs yt-dlp or real footage.
 - GitHub publication: create the claude-shotlist repo, restore
   homepage/repository fields, replace README `<this-repo>` placeholders.
+
+
+## 2026-08-30 — Real-video validation of Step-4 prompt fill
+
+**Done.**
+
+- Installed yt-dlp (scoop; node present for its JS runtime). No Whisper
+  key on this machine → ran `--no-whisper`; native captions still pulled.
+- Real run: Coleman "The Outside is Calling" (31s brand anthem,
+  youtube.com/watch?v=AYrBZTHXGV8), intent "creative-direction reference:
+  per-shot stills-then-motion brief". Pipeline end-to-end clean: 17
+  scene-change shots (durations 1.0–5.7s, all with real `~Xs to next cut`
+  figures), 20 hook frames, captions fetched, report emitted with 44
+  pending markers. Uniform-fallback did NOT trigger — first confirmation
+  of the scene path on real footage.
+- Filled all 44 markers from the frames (17 image_prompt + 17
+  motion_note + TL;DR/key moments/hook/profile/quotables/entities/
+  concepts). 0 markers left; report UTF-8 clean. Workdir: session
+  scratchpad `coleman-run/` (not committed — frames are third-party
+  stills, report references local paths).
+
+**Judgment — hand-edit distance (the thing this step existed to measure).**
+
+- `image_prompt`: LOW. 512px frames carried enough signal (subject,
+  composition, light direction, grade, even lens character via FPV blur /
+  drone perspective) that the prompts are usable as-is for a stills
+  generator; remaining edits are generator-specific style keywords, not
+  content. No frame was too small to describe confidently.
+- `motion_note`: MEDIUM, structurally. A still cannot show camera motion;
+  notes are inferred from motion blur + perspective + neighbouring
+  frames. On this clip (FPV/drone-heavy) inference was easy; on
+  tripod/subtle-move footage the note would be a guess. This is a
+  limitation of the input, not the schema.
+- Two instrument observations: (1) the scene frame is grabbed at the cut,
+  so shot 4's title card was caught mid-animation — `hook_frames/` had
+  the settled version; (2) captions on a music-only ad are junk
+  ("[Music] is / my days") — the quotables section needed an honest
+  "none spoken" fill, which the schema absorbed fine.
+- Both lessons folded into SKILL.md Step 4 (new sub-bullet under the
+  shot-prompts fill spec). No runtime changes; scripts still byte-identical
+  to 0.3.0. 12/12 tests OK.
+
+**Pending.**
+
+- GitHub publication (unchanged): create claude-shotlist repo, restore
+  homepage/repository fields in SKILL.md + both plugin manifests, replace
+  README `<this-repo>` placeholders, tag v0.4.0.
+- Optional deeper validation: run a still from a filled image_prompt
+  through an actual image generator and compare against the source frame
+  — measures prompt fidelity, not just plausibility. Not done here (no
+  generator wired into this environment).
