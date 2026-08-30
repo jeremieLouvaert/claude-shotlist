@@ -207,9 +207,17 @@ class TestRemix(unittest.TestCase):
         omni = [n for n in w["nodes"] if n["type"] == "GeminiVideoOmni"]
         self.assertEqual(len(bd), 2)
         self.assertEqual(len(omni), 2)
+        by_seed = {n["widgets_values"][6]: n for n in bd}
+        # shot 1 has a 2.0s original -> clamped to Seedance's 4s minimum;
+        # shot 2 has no duration -> schema default 5
+        self.assertEqual(by_seed[1]["widgets_values"][3], 4)
+        self.assertEqual(by_seed[2]["widgets_values"][3], 5)
         for n in bd:
             self.assertEqual(n["mode"], remix.MODE_MUTED)
             self.assertEqual(n["widgets_values"][remix.BYTEDANCE_W_MODEL], "Seedance 2.5")
+            # live-schema 2.5 layout: output_format combo at index 5
+            self.assertEqual(n["widgets_values"][5], "mp4")
+            self.assertEqual(len(n["widgets_values"]), 11)
             wired = {i["name"]: i["link"] for i in n["inputs"]}
             self.assertIsNotNone(wired["first_frame"])
             self.assertIsNotNone(wired["last_frame"])

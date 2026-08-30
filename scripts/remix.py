@@ -52,7 +52,7 @@ LOADIMAGE_W_FILE = 0
 STRING_W_TEXT = 0
 SAVEIMAGE_W_PREFIX = 0
 SAVEVIDEO_W_PREFIX = 0
-BYTEDANCE_W_MODEL = 0   # "Seedance 2.0" evidenced; 2.5 emitted on request
+BYTEDANCE_W_MODEL = 0
 BYTEDANCE_W_SEED = 6
 OMNI_W_SEED = 4
 
@@ -76,7 +76,7 @@ def _err(msg: str) -> None:
 # ---------------------------------------------------------------- report parse
 
 SHOT_HEAD_RE = re.compile(
-    r"^### Shot (\d+) — \[(\d+:\d+)\] `([^`]+)`(?: \(~([\d.]+)s to next cut\))?",
+    r"^### Shot (\d+) — \[(\d+:\d+)\] `([^`]+)`(?: \(~([\d.]+)s[^)]*\))?",
     re.M,
 )
 
@@ -209,6 +209,7 @@ def parse_remix(remix_text: str) -> tuple[dict, list[dict]]:
         shots.append({
             "n": int(m.group(1)),
             "frame": m.group(3),
+            "dur": float(m.group(4)) if m.group(4) else None,
             "first": field("first_frame_prompt"),
             "last": field("last_frame_prompt"),
             "video": field("video_prompt"),
@@ -396,9 +397,19 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         sd_mode = MODE_ACTIVE if video_engine == "seedance" else MODE_MUTED
         omni_mode = MODE_ACTIVE if video_engine == "omni" else MODE_MUTED
 
+        dur = s.get("dur")
+        sd_dur = max(4, min(30, round(dur))) if dur else 5
+        if seedance_model.startswith("Seedance 2.5"):
+            # [model, prompt(link), resolution, duration, generate_audio,
+            #  output_format, seed, control, watermark, first/last asset ids]
+            sd_widgets = dict(enumerate([seedance_model, "", "1080p", sd_dur,
+                                         False, "mp4", s["n"], "randomize",
+                                         False, "", ""]))
+        else:
+            sd_widgets = {BYTEDANCE_W_MODEL: seedance_model,
+                          4: sd_dur, BYTEDANCE_W_SEED: s["n"]}
         sd = g.add("ByteDance2FirstLastFrameNode", [VCOL[2], y],
-                   {BYTEDANCE_W_MODEL: seedance_model, BYTEDANCE_W_SEED: s["n"]},
-                   mode=sd_mode)
+                   sd_widgets, mode=sd_mode)
         g.link(first, "value", sd, "first_frame")
         g.link(last, "value", sd, "last_frame")
         g.link(vp, "STRING", sd, "model.prompt")
@@ -432,7 +443,7 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
 
 
 def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedance",
-         seedance_model: str = "Seedance 2.5") -> None:
+         seedance_model: str = "Seedance 2.5", comfy_input: str | None = None) -> None:
     remix = workdir / "remix.md"
     if not remix.exists():
         _err(f"no remix.md in {workdir} — run with --brief first")
@@ -444,11 +455,19 @@ def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedan
     indir.mkdir(parents=True, exist_ok=True)
 
     frames_dir = workdir / "frames"
+    import os
+    comfy_in = comfy_input or os.environ.get("SHOTLIST_COMFY_INPUT")
+    comfy_dir = Path(comfy_in) if comfy_in else None
+    if comfy_dir is not None and not comfy_dir.is_dir():
+        print(f"[remix] WARN: ComfyUI input dir not found: {comfy_dir}", file=sys.stderr)
+        comfy_dir = None
     copied = 0
     for s in shots:
         src = frames_dir / s["frame"]
         if src.exists():
             shutil.copyfile(src, indir / f"shot{s['n']:02d}_ref{src.suffix}")
+            if comfy_dir is not None:
+                shutil.copyfile(src, comfy_dir / f"shot{s['n']:02d}_ref{src.suffix}")
             copied += 1
         else:
             print(f"[remix] WARN: reference frame missing: {src}", file=sys.stderr)
@@ -463,7 +482,8 @@ def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedan
     print(f"[remix] workflow: {out}")
     print(f"[remix] engines: stills={stills_engine} (other muted), "
           f"video={video_engine} (other muted) — toggle by muting/unmuting in the UI")
-    print(f"[remix] reference frames: {indir} ({copied} copied)")
+    print(f"[remix] reference frames: {indir} ({copied} copied)"
+          + (f" — also copied into {comfy_dir}" if comfy_dir is not None else ""))
     print("[remix] next:")
     print("  1. copy comfy/input/* into ComfyUI's input folder, load remix_workflow.json")
     print("  2. queue ONCE — firsts -> lasts -> videos chain over wireless channels in a single run")
@@ -485,13 +505,16 @@ def main() -> None:
     ap.add_argument("--video-engine", choices=["seedance", "omni"], default="seedance",
                     help="active video engine: seedance (ByteDance first/last) or omni (Gemini Video Omni); the other is emitted muted")
     ap.add_argument("--seedance-model", default="Seedance 2.5",
-                    help='Seedance model widget value (default "Seedance 2.5"; only "Seedance 2.0" is evidenced in captures — pick in the UI if the dropdown rejects it)')
+                    help='Seedance model widget value (default "Seedance 2.5")')
+    ap.add_argument("--comfy-input", default=None,
+                    help="ComfyUI input directory; reference frames are copied there so LoadImage resolves without manual uploads (also honors $SHOTLIST_COMFY_INPUT)")
     args = ap.parse_args()
     workdir = Path(args.workdir)
     if not workdir.is_dir():
         _err(f"not a directory: {workdir}")
     if args.emit:
-        emit(workdir, args.stills_engine, args.video_engine, args.seedance_model)
+        emit(workdir, args.stills_engine, args.video_engine, args.seedance_model,
+             args.comfy_input)
     elif args.brief:
         write_remix(workdir, args.brief, args.ar)
     else:
