@@ -9,15 +9,18 @@ Two phases:
      style_keeper marker. Claude fills them (same marker convention as
      report.md).
 
-  2. python remix.py <workdir> --emit
-     Parses the filled remix.md and writes:
-       <workdir>/comfy/stills_workflow.json   (per shot: reference frame ->
-                                               GeminiImage2Node x2 -> SaveImage)
-       <workdir>/comfy/video_workflow.json    (per shot: first/last stills ->
-                                               ByteDance2FirstLastFrameNode ->
-                                               SaveVideo)
+  2. python remix.py <workdir> --emit [--stills-engine nano|gpt]
+                                      [--video-engine seedance|omni]
+     Parses the filled remix.md and writes ONE combined workflow:
+       <workdir>/comfy/remix_workflow.json    section A (stills): reference
+                                              frame -> Nano Banana Pro AND
+                                              gpt-image-2 per first/last (the
+                                              non-chosen engine emitted muted);
+                                              section B (video): picked stills ->
+                                              Seedance first/last AND Gemini
+                                              Video Omni (one muted) -> SaveVideo
        <workdir>/comfy/input/shotNN_ref.<ext> (reference frames, renamed for
-                                               ComfyUI's input folder)
+                                              ComfyUI's input folder)
 
 The node graphs are built from scripts/comfy_templates.json — verbatim node
 instances captured from a real install (widgets_values order is undocumented
@@ -39,13 +42,26 @@ PENDING_RE = re.compile(r"<!--\s*pending Claude fill:.*?-->", re.DOTALL)
 TEMPLATES_PATH = Path(__file__).parent / "comfy_templates.json"
 
 # widget indices, verified against the captured templates
+GEMINI_W_MODEL = 1      # "gemini-3-pro-image-preview" (Nano Banana Pro)
 GEMINI_W_ASPECT = 4     # "16:9"
 GEMINI_W_SEED = 2
+GPT_W_MODEL = 1         # "gpt-image-2"
+GPT_W_WIDTH = 3
+GPT_W_HEIGHT = 4
 LOADIMAGE_W_FILE = 0
 STRING_W_TEXT = 0
 SAVEIMAGE_W_PREFIX = 0
 SAVEVIDEO_W_PREFIX = 0
+BYTEDANCE_W_MODEL = 0   # "Seedance 2.0" evidenced; 2.5 emitted on request
 BYTEDANCE_W_SEED = 6
+OMNI_W_SEED = 4
+
+MODE_ACTIVE = 0
+MODE_MUTED = 2          # litegraph "never" — toggle in the UI to switch engines
+
+# 16:9-family custom sizes for gpt-image-2's Custom preset
+GPT_SIZES = {"16:9": (2560, 1440), "9:16": (1440, 2560), "1:1": (2048, 2048),
+             "4:3": (2304, 1728), "3:2": (2496, 1664), "21:9": (2688, 1152)}
 
 
 def _pending(hint: str) -> str:
@@ -215,13 +231,14 @@ class Graph:
         self._id = 0
         self._link = 0
 
-    def add(self, kind: str, pos: list, widgets: dict | None = None) -> dict:
+    def add(self, kind: str, pos: list, widgets: dict | None = None,
+            mode: int = MODE_ACTIVE) -> dict:
         n = copy.deepcopy(self.t[kind])
         self._id += 1
         n["id"] = self._id
         n["pos"] = list(pos)
         n["order"] = self._id
-        n["mode"] = 0
+        n["mode"] = mode
         for inp in n.get("inputs", []):
             inp["link"] = None
         for outp in n.get("outputs", []):
@@ -266,57 +283,105 @@ class Graph:
         }
 
 
-ROW_H = 900          # vertical space per shot group
-COL = [0, 460, 1080, 1700]  # x positions: ref/prompts, (gap), gen, save
+ROW_H = 1960                     # vertical space per shot row (2 halves x 2 engines)
+SCOL = [0, 460, 1080, 1760]      # stills: ref / prompt / gen / save
+VX = 2700                        # video section x offset
+VCOL = [VX, VX + 460, VX + 1080, VX + 1760]
+HALF_DY = 980                    # first vs last half offset
+ENG_DY = 460                     # engine A vs engine B offset within a half
 
 
-def build_stills(templates: dict, shots: list[dict], meta: dict) -> dict:
+def build_combined(templates: dict, shots: list[dict], meta: dict,
+                   stills_engine: str, video_engine: str,
+                   seedance_model: str) -> dict:
     g = Graph(templates)
     aspect = meta.get("aspect_ratio", "16:9")
     style = meta.get("style_keeper", "")
+    gw, gh = GPT_SIZES.get(aspect, GPT_SIZES["16:9"])
+    n_rows = len(shots)
+
     for row, s in enumerate(shots):
-        y = 60 + row * ROW_H
+        y = 120 + row * ROW_H
         nn = f"shot{s['n']:02d}"
-        ref = g.add("LoadImage", [COL[0], y],
+
+        # ---- stills half-rows: first + last, each with both engines
+        ref = g.add("LoadImage", [SCOL[0], y],
                     {LOADIMAGE_W_FILE: f"{nn}_ref{Path(s['frame']).suffix}"})
-        for half, (key, dy) in enumerate((("first", 0), ("last", 420))):
+        for half, key in enumerate(("first", "last")):
+            hy = y + half * HALF_DY
             prompt_text = s[key] + (f"\n\nStyle: {style}" if style else "")
-            p = g.add("PrimitiveStringMultiline", [COL[1], y + dy],
+            p = g.add("PrimitiveStringMultiline", [SCOL[1], hy],
                       {STRING_W_TEXT: prompt_text})
-            gen = g.add("GeminiImage2Node", [COL[2], y + dy],
-                        {GEMINI_W_ASPECT: aspect,
-                         GEMINI_W_SEED: 1000 * s["n"] + half})
-            save = g.add("SaveImage", [COL[3], y + dy],
-                         {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}"})
-            g.link(ref, "IMAGE", gen, "images")
-            g.link(p, "STRING", gen, "prompt")
-            g.link(gen, "IMAGE", save, "images")
-        g.group(f"Shot {s['n']} — first + last frame",
-                [COL[0] - 30, y - 50, COL[3] + 420, ROW_H - 60])
+
+            nano_mode = MODE_ACTIVE if stills_engine == "nano" else MODE_MUTED
+            gpt_mode = MODE_ACTIVE if stills_engine == "gpt" else MODE_MUTED
+
+            nano = g.add("GeminiImage2Node", [SCOL[2], hy],
+                         {GEMINI_W_MODEL: "gemini-3-pro-image-preview",
+                          GEMINI_W_ASPECT: aspect,
+                          GEMINI_W_SEED: 1000 * s["n"] + half},
+                         mode=nano_mode)
+            nano_save = g.add("SaveImage", [SCOL[3], hy],
+                              {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}_nano"},
+                              mode=nano_mode)
+            g.link(ref, "IMAGE", nano, "images")
+            g.link(p, "STRING", nano, "prompt")
+            g.link(nano, "IMAGE", nano_save, "images")
+
+            gpt = g.add("OpenAIGPTImageNodeV2", [SCOL[2], hy + ENG_DY],
+                        {GPT_W_WIDTH: gw, GPT_W_HEIGHT: gh},
+                        mode=gpt_mode)
+            gpt_save = g.add("SaveImage", [SCOL[3], hy + ENG_DY],
+                             {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}_gpt"},
+                             mode=gpt_mode)
+            g.link(ref, "IMAGE", gpt, "model.images.image_1")
+            g.link(p, "STRING", gpt, "prompt")
+            g.link(gpt, "IMAGE", gpt_save, "images")
+
+        g.group(f"Shot {s['n']} — STILLS first/last (unmute one engine)",
+                [SCOL[0] - 30, y - 60, SCOL[3] + 450, ROW_H - 80])
+
+        # ---- video row: picked stills -> Seedance + Omni, one muted
+        first = g.add("LoadImage", [VCOL[0], y], {LOADIMAGE_W_FILE: f"{nn}_first.png"})
+        last = g.add("LoadImage", [VCOL[0], y + HALF_DY],
+                     {LOADIMAGE_W_FILE: f"{nn}_last.png"})
+        vp = g.add("StringConstantMultiline", [VCOL[1], y], {STRING_W_TEXT: s["video"]})
+
+        sd_mode = MODE_ACTIVE if video_engine == "seedance" else MODE_MUTED
+        omni_mode = MODE_ACTIVE if video_engine == "omni" else MODE_MUTED
+
+        sd = g.add("ByteDance2FirstLastFrameNode", [VCOL[2], y],
+                   {BYTEDANCE_W_MODEL: seedance_model, BYTEDANCE_W_SEED: s["n"]},
+                   mode=sd_mode)
+        sd_save = g.add("SaveVideo", [VCOL[3], y],
+                        {SAVEVIDEO_W_PREFIX: f"remix/{nn}_seedance"}, mode=sd_mode)
+        g.link(first, "IMAGE", sd, "first_frame")
+        g.link(last, "IMAGE", sd, "last_frame")
+        g.link(vp, "STRING", sd, "model.prompt")
+        g.link(sd, "VIDEO", sd_save, "video")
+
+        omni = g.add("GeminiVideoOmni", [VCOL[2], y + ENG_DY],
+                     {OMNI_W_SEED: s["n"]}, mode=omni_mode)
+        omni_save = g.add("SaveVideo", [VCOL[3], y + ENG_DY],
+                          {SAVEVIDEO_W_PREFIX: f"remix/{nn}_omni"}, mode=omni_mode)
+        g.link(first, "IMAGE", omni, "model.images.image_1")
+        g.link(last, "IMAGE", omni, "model.images.image_2")
+        g.link(vp, "STRING", omni, "model.prompt")
+        g.link(omni, "VIDEO", omni_save, "video")
+
+        g.group(f"Shot {s['n']} — VIDEO first→last (unmute one engine)",
+                [VCOL[0] - 30, y - 60, VCOL[3] + 450, ROW_H - 80])
+
+    total_h = 120 + n_rows * ROW_H
+    g.group("A — STILLS: generate first/last frames per shot",
+            [SCOL[0] - 60, -40, SCOL[3] + 510, total_h])
+    g.group("B — VIDEO: animate the picked stills",
+            [VCOL[0] - 60, -40, VCOL[3] + 510, total_h])
     return g.dump()
 
 
-def build_video(templates: dict, shots: list[dict], meta: dict) -> dict:
-    g = Graph(templates)
-    for row, s in enumerate(shots):
-        y = 60 + row * ROW_H
-        nn = f"shot{s['n']:02d}"
-        first = g.add("LoadImage", [COL[0], y], {LOADIMAGE_W_FILE: f"{nn}_first.png"})
-        last = g.add("LoadImage", [COL[0], y + 420], {LOADIMAGE_W_FILE: f"{nn}_last.png"})
-        p = g.add("StringConstantMultiline", [COL[1], y], {STRING_W_TEXT: s["video"]})
-        gen = g.add("ByteDance2FirstLastFrameNode", [COL[2], y],
-                    {BYTEDANCE_W_SEED: s["n"]})
-        save = g.add("SaveVideo", [COL[3], y], {SAVEVIDEO_W_PREFIX: f"remix/{nn}"})
-        g.link(first, "IMAGE", gen, "first_frame")
-        g.link(last, "IMAGE", gen, "last_frame")
-        g.link(p, "STRING", gen, "model.prompt")
-        g.link(gen, "VIDEO", save, "video")
-        g.group(f"Shot {s['n']} — Seedance first→last",
-                [COL[0] - 30, y - 50, COL[3] + 420, ROW_H - 60])
-    return g.dump()
-
-
-def emit(workdir: Path) -> None:
+def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedance",
+         seedance_model: str = "Seedance 2.5") -> None:
     remix = workdir / "remix.md"
     if not remix.exists():
         _err(f"no remix.md in {workdir} — run with --brief first")
@@ -337,21 +402,22 @@ def emit(workdir: Path) -> None:
         else:
             print(f"[remix] WARN: reference frame missing: {src}", file=sys.stderr)
 
-    stills = outdir / "stills_workflow.json"
-    video = outdir / "video_workflow.json"
-    stills.write_text(json.dumps(build_stills(templates, shots, meta), indent=1),
-                      encoding="utf-8", newline="\n")
-    video.write_text(json.dumps(build_video(templates, shots, meta), indent=1),
-                     encoding="utf-8", newline="\n")
+    out = outdir / "remix_workflow.json"
+    out.write_text(json.dumps(build_combined(templates, shots, meta,
+                                             stills_engine, video_engine,
+                                             seedance_model), indent=1),
+                   encoding="utf-8", newline="\n")
 
-    print(f"[remix] {len(shots)} shots")
-    print(f"[remix] stills workflow: {stills}")
-    print(f"[remix] video workflow:  {video}")
+    print(f"[remix] {len(shots)} shots -> one combined workflow")
+    print(f"[remix] workflow: {out}")
+    print(f"[remix] engines: stills={stills_engine} (other muted), "
+          f"video={video_engine} (other muted) — toggle by muting/unmuting in the UI")
     print(f"[remix] reference frames: {indir} ({copied} copied)")
     print("[remix] next:")
-    print("  1. copy comfy/input/* into ComfyUI's input folder, load stills_workflow.json, run")
-    print("  2. pick the winning first/last still per shot, rename to shotNN_first.png / shotNN_last.png,")
-    print("     drop them in ComfyUI's input folder, load video_workflow.json, run")
+    print("  1. copy comfy/input/* into ComfyUI's input folder, load remix_workflow.json")
+    print("  2. run section A (STILLS) — first/last frames per shot land in output/remix/")
+    print("  3. pick winners, rename to shotNN_first.png / shotNN_last.png, drop in ComfyUI input")
+    print("  4. run section B (VIDEO) — clips land in output/remix/")
 
 
 def main() -> None:
@@ -361,13 +427,19 @@ def main() -> None:
     ap.add_argument("--brief", help="transposition brief; writes remix.md with pending markers")
     ap.add_argument("--ar", default="16:9", help="target aspect ratio (default 16:9)")
     ap.add_argument("--emit", action="store_true",
-                    help="parse the filled remix.md and write the ComfyUI workflows")
+                    help="parse the filled remix.md and write the ComfyUI workflow")
+    ap.add_argument("--stills-engine", choices=["nano", "gpt"], default="nano",
+                    help="active stills engine: nano (Nano Banana Pro) or gpt (gpt-image-2); the other is emitted muted")
+    ap.add_argument("--video-engine", choices=["seedance", "omni"], default="seedance",
+                    help="active video engine: seedance (ByteDance first/last) or omni (Gemini Video Omni); the other is emitted muted")
+    ap.add_argument("--seedance-model", default="Seedance 2.5",
+                    help='Seedance model widget value (default "Seedance 2.5"; only "Seedance 2.0" is evidenced in captures — pick in the UI if the dropdown rejects it)')
     args = ap.parse_args()
     workdir = Path(args.workdir)
     if not workdir.is_dir():
         _err(f"not a directory: {workdir}")
     if args.emit:
-        emit(workdir)
+        emit(workdir, args.stills_engine, args.video_engine, args.seedance_model)
     elif args.brief:
         write_remix(workdir, args.brief, args.ar)
     else:

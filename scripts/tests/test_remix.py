@@ -87,68 +87,95 @@ class TestRemix(unittest.TestCase):
         with self.assertRaises(SystemExit):
             remix.emit(self.tmp)
 
-    def test_emit_builds_valid_graphs(self):
+    def _emit(self, **kw) -> dict:
         remix.write_remix(self.tmp, "cows become tractors", "16:9")
         self._fill(self.tmp / "remix.md")
-        remix.emit(self.tmp)
+        remix.emit(self.tmp, **kw)
+        return json.loads((self.tmp / "comfy" / "remix_workflow.json").read_text(encoding="utf-8"))
 
+    def test_emit_builds_valid_combined_graph(self):
+        w = self._emit()
         indir = self.tmp / "comfy" / "input"
         self.assertTrue((indir / "shot01_ref.jpg").exists())
         self.assertTrue((indir / "shot02_ref.jpg").exists())
 
-        stills = json.loads((self.tmp / "comfy" / "stills_workflow.json").read_text(encoding="utf-8"))
-        video = json.loads((self.tmp / "comfy" / "video_workflow.json").read_text(encoding="utf-8"))
+        ids = [n["id"] for n in w["nodes"]]
+        self.assertEqual(len(ids), len(set(ids)), "node ids must be unique")
+        # per shot: stills 1 ref + 2x(prompt + 2 gen + 2 save) = 11; video 2 load + prompt + 2 gen + 2 save = 7
+        self.assertEqual(len(w["nodes"]), 2 * 18)
+        # per shot: stills 2x(3+3) = 12 links; video 4+4 = 8
+        self.assertEqual(len(w["links"]), 2 * 20)
+        # 2 groups per shot + 2 section super-groups
+        self.assertEqual(len(w["groups"]), 2 * 2 + 2)
+        byid = {n["id"]: n for n in w["nodes"]}
+        for lid, src, oslot, dst, islot, _typ in w["links"]:
+            self.assertIn(lid, byid[src]["outputs"][oslot]["links"])
+            self.assertEqual(byid[dst]["inputs"][islot]["link"], lid)
+        self.assertEqual(w["last_node_id"], max(ids))
 
-        for w, per_shot_nodes, per_shot_links in ((stills, 7, 6), (video, 5, 4)):
-            ids = [n["id"] for n in w["nodes"]]
-            self.assertEqual(len(ids), len(set(ids)), "node ids must be unique")
-            self.assertEqual(len(w["nodes"]), 2 * per_shot_nodes)
-            self.assertEqual(len(w["links"]), 2 * per_shot_links)
-            self.assertEqual(len(w["groups"]), 2)
-            byid = {n["id"]: n for n in w["nodes"]}
-            for lid, src, oslot, dst, islot, _typ in w["links"]:
-                self.assertIn(lid, byid[src]["outputs"][oslot]["links"])
-                self.assertEqual(byid[dst]["inputs"][islot]["link"], lid)
-            self.assertEqual(w["last_node_id"], max(ids))
-
-    def test_stills_graph_wiring_and_widgets(self):
-        remix.write_remix(self.tmp, "cows become tractors", "16:9")
-        self._fill(self.tmp / "remix.md")
-        remix.emit(self.tmp)
-        w = json.loads((self.tmp / "comfy" / "stills_workflow.json").read_text(encoding="utf-8"))
-        gemini = [n for n in w["nodes"] if n["type"] == "GeminiImage2Node"]
-        self.assertEqual(len(gemini), 4)  # 2 shots x first+last
-        for n in gemini:
+    def test_stills_wiring_widgets_and_engine_muting(self):
+        w = self._emit()  # default: nano active, gpt muted
+        nano = [n for n in w["nodes"] if n["type"] == "GeminiImage2Node"]
+        gpt = [n for n in w["nodes"] if n["type"] == "OpenAIGPTImageNodeV2"]
+        self.assertEqual(len(nano), 4)  # 2 shots x first+last
+        self.assertEqual(len(gpt), 4)
+        for n in nano:
+            self.assertEqual(n["mode"], remix.MODE_ACTIVE)
+            self.assertEqual(n["widgets_values"][remix.GEMINI_W_MODEL],
+                             "gemini-3-pro-image-preview")
             self.assertEqual(n["widgets_values"][remix.GEMINI_W_ASPECT], "16:9")
-            # both image conditioning and prompt must be wired
             wired = {i["name"] for i in n["inputs"] if i.get("link") is not None}
             self.assertIn("images", wired)
             self.assertIn("prompt", wired)
-        saves = sorted(n["widgets_values"][0] for n in w["nodes"] if n["type"] == "SaveImage")
-        self.assertEqual(saves, ["remix/shot01_first", "remix/shot01_last",
-                                 "remix/shot02_first", "remix/shot02_last"])
+        for n in gpt:
+            self.assertEqual(n["mode"], remix.MODE_MUTED)
+            self.assertEqual((n["widgets_values"][remix.GPT_W_WIDTH],
+                              n["widgets_values"][remix.GPT_W_HEIGHT]), (2560, 1440))
+            wired = {i["name"] for i in n["inputs"] if i.get("link") is not None}
+            self.assertIn("model.images.image_1", wired)
+            self.assertIn("prompt", wired)
+        saves = sorted(n["widgets_values"][0] for n in w["nodes"]
+                       if n["type"] == "SaveImage" and "_nano" in n["widgets_values"][0])
+        self.assertEqual(saves, ["remix/shot01_first_nano", "remix/shot01_last_nano",
+                                 "remix/shot02_first_nano", "remix/shot02_last_nano"])
         prompts = [n["widgets_values"][0] for n in w["nodes"]
                    if n["type"] == "PrimitiveStringMultiline"]
         self.assertTrue(all("Style: " in p for p in prompts),
                         "style_keeper must be appended to every stills prompt")
 
-    def test_video_graph_wiring(self):
-        remix.write_remix(self.tmp, "brief", "16:9")
-        self._fill(self.tmp / "remix.md")
-        remix.emit(self.tmp)
-        w = json.loads((self.tmp / "comfy" / "video_workflow.json").read_text(encoding="utf-8"))
-        byid = {n["id"]: n for n in w["nodes"]}
+    def test_video_wiring_and_engine_muting(self):
+        w = self._emit(video_engine="omni")  # omni active, seedance muted
         bd = [n for n in w["nodes"] if n["type"] == "ByteDance2FirstLastFrameNode"]
+        omni = [n for n in w["nodes"] if n["type"] == "GeminiVideoOmni"]
         self.assertEqual(len(bd), 2)
+        self.assertEqual(len(omni), 2)
         for n in bd:
+            self.assertEqual(n["mode"], remix.MODE_MUTED)
+            self.assertEqual(n["widgets_values"][remix.BYTEDANCE_W_MODEL], "Seedance 2.5")
             wired = {i["name"]: i["link"] for i in n["inputs"]}
             self.assertIsNotNone(wired["first_frame"])
             self.assertIsNotNone(wired["last_frame"])
             self.assertIsNotNone(wired["model.prompt"])
             self.assertNotEqual(wired["first_frame"], wired["last_frame"])
-        loads = sorted(n["widgets_values"][0] for n in w["nodes"] if n["type"] == "LoadImage")
+        for n in omni:
+            self.assertEqual(n["mode"], remix.MODE_ACTIVE)
+            wired = {i["name"]: i["link"] for i in n["inputs"]}
+            self.assertIsNotNone(wired["model.images.image_1"])
+            self.assertIsNotNone(wired["model.images.image_2"])
+            self.assertIsNotNone(wired["model.prompt"])
+            self.assertNotEqual(wired["model.images.image_1"], wired["model.images.image_2"])
+        loads = sorted(n["widgets_values"][0] for n in w["nodes"]
+                       if n["type"] == "LoadImage" and "_ref" not in n["widgets_values"][0])
         self.assertEqual(loads, ["shot01_first.png", "shot01_last.png",
                                  "shot02_first.png", "shot02_last.png"])
+
+    def test_gpt_stills_engine_active_when_selected(self):
+        w = self._emit(stills_engine="gpt")
+        for n in w["nodes"]:
+            if n["type"] == "OpenAIGPTImageNodeV2":
+                self.assertEqual(n["mode"], remix.MODE_ACTIVE)
+            if n["type"] == "GeminiImage2Node":
+                self.assertEqual(n["mode"], remix.MODE_MUTED)
 
 
 if __name__ == "__main__":

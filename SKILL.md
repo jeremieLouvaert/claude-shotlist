@@ -235,13 +235,13 @@ When the user wants to RECREATE the reference as their own film ("remix this int
    ```
    This parses the report's Shot prompts section into `<workdir>/remix.md` with three pending markers per shot (`first_frame_prompt`, `last_frame_prompt`, `video_prompt`) plus one global `style_keeper`. It refuses to run on a report with unfilled markers.
 2. **Fill every marker** (same walk as Step 4), grounded in the shot's frame — which the stills generator will receive as image conditioning. So write first/last frame prompts as **instructions against the reference** ("replace the riders with…", "reframe to 16:9 extending the landscape…", "remove the caption text"), not from-scratch descriptions. `first` is the shot's opening state, `last` is its end state in the same world; `video_prompt` describes only the motion between them. `style_keeper` is one sentence naming the original's grade/light/lens, auto-appended to every stills prompt. Never put a real person's likeness in a transposed prompt — recast as a fictional person.
-3. **Emit the workflows:**
+3. **Emit the workflow:**
    ```bash
-   python3 "C:/Users/Jeremie/.claude/skills/shotlist/scripts/remix.py" "<workdir>" --emit
+   python3 "C:/Users/Jeremie/.claude/skills/shotlist/scripts/remix.py" "<workdir>" --emit [--stills-engine nano|gpt] [--video-engine seedance|omni] [--seedance-model "Seedance 2.5"]
    ```
-   Writes `comfy/stills_workflow.json`, `comfy/video_workflow.json`, and `comfy/input/shotNN_ref.*` (renamed reference frames). Relay the printed handoff to the user: drop `comfy/input/*` into ComfyUI's input folder → run the stills graph → pick winners per shot, rename to `shotNN_first.png` / `shotNN_last.png`, into ComfyUI input → run the video graph.
+   Writes ONE combined `comfy/remix_workflow.json` plus `comfy/input/shotNN_ref.*` (renamed reference frames). The graph has two labelled sections: **A — STILLS** (per shot: reference frame + prompt → Nano Banana Pro `GeminiImage2Node` AND `gpt-image-2` `OpenAIGPTImageNodeV2`, sharing the same prompt) and **B — VIDEO** (per shot: picked first/last stills + video prompt → Seedance `ByteDance2FirstLastFrameNode` AND `GeminiVideoOmni` with first→image_1 / last→image_2). Both engines are emitted per shot; the non-chosen one is **muted** — the user switches engines by muting/unmuting in the UI, no re-emit. Relay the printed handoff: drop `comfy/input/*` into ComfyUI's input folder → load the workflow → run section A → pick winners per shot, rename to `shotNN_first.png` / `shotNN_last.png`, into ComfyUI input → run section B; everything saves under `output/remix/` with engine-suffixed prefixes.
 
-The graphs are emitted from `scripts/comfy_templates.json` — node instances captured from a real install (GeminiImage2Node for stills, ByteDance2FirstLastFrameNode/Seedance 2.0 for video). If the user's ComfyUI lacks those node packs, the file loads with missing-node placeholders — tell them which packs the graph expects rather than editing the JSON by hand.
+The graph is emitted from `scripts/comfy_templates.json` — node instances captured from a real install. If the user's ComfyUI lacks those node packs, the file loads with missing-node placeholders — tell them which packs the graph expects rather than editing the JSON by hand. Note: only `"Seedance 2.0"` is evidenced as a dropdown value in the captures; the default emits `"Seedance 2.5"` per user preference — if the widget rejects it, they pick the model manually once.
 
 ## Transcription
 

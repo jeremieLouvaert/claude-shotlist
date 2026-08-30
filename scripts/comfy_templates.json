@@ -359,5 +359,163 @@
    "format.codec": "auto",
    "codec": "auto"
   }
+ },
+ "OpenAIGPTImageNodeV2": {
+  "id": 1141,
+  "type": "OpenAIGPTImageNodeV2",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   400,
+   324
+  ],
+  "flags": {},
+  "order": 18,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "prompt",
+    "type": "STRING",
+    "widget": {
+     "name": "prompt"
+    },
+    "link": 1498
+   },
+   {
+    "name": "model.custom_width",
+    "type": "INT",
+    "widget": {
+     "name": "model.custom_width"
+    },
+    "link": 1438
+   },
+   {
+    "name": "model.custom_height",
+    "type": "INT",
+    "widget": {
+     "name": "model.custom_height"
+    },
+    "link": 1439
+   },
+   {
+    "label": "image_1",
+    "name": "model.images.image_1",
+    "shape": 7,
+    "type": "IMAGE",
+    "link": null
+   },
+   {
+    "label": "mask",
+    "name": "model.mask",
+    "shape": 7,
+    "type": "MASK",
+    "link": null
+   }
+  ],
+  "outputs": [
+   {
+    "name": "IMAGE",
+    "type": "IMAGE",
+    "links": [
+     1435
+    ]
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.23.0",
+   "Node name for S&R": "OpenAIGPTImageNodeV2"
+  },
+  "widgets_values": [
+   "",
+   "gpt-image-2",
+   "Custom",
+   2528,
+   1696,
+   "auto",
+   "high",
+   1,
+   5,
+   "randomize"
+  ],
+  "color": "#432",
+  "bgcolor": "#653"
+ },
+ "GeminiVideoOmni": {
+  "id": 1196,
+  "type": "GeminiVideoOmni",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   400,
+   248
+  ],
+  "flags": {},
+  "order": 21,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "model.prompt",
+    "type": "STRING",
+    "widget": {
+     "name": "model.prompt"
+    },
+    "link": 1531
+   },
+   {
+    "label": "image_1",
+    "name": "model.images.image_1",
+    "shape": 7,
+    "type": "IMAGE",
+    "link": 1532
+   },
+   {
+    "label": "image_2",
+    "name": "model.images.image_2",
+    "shape": 7,
+    "type": "IMAGE",
+    "link": null
+   },
+   {
+    "label": "video_1",
+    "name": "model.videos.video_1",
+    "shape": 7,
+    "type": "VIDEO",
+    "link": null
+   }
+  ],
+  "outputs": [
+   {
+    "name": "VIDEO",
+    "type": "VIDEO",
+    "links": [
+     1533
+    ]
+   },
+   {
+    "name": "STRING",
+    "type": "STRING",
+    "links": null
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.28.0",
+   "Node name for S&R": "GeminiVideoOmni"
+  },
+  "widgets_values": [
+   "Omni Flash",
+   "",
+   1,
+   0.95,
+   42,
+   "randomize"
+  ],
+  "color": "#432",
+  "bgcolor": "#653"
  }
 }
