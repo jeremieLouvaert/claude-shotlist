@@ -14,7 +14,8 @@
         "name": "jeremie"
       },
       "source": "./",
-      "category": "productivity"
+      "category": "productivity",
+      "homepage": "https://github.com/jeremieLouvaert/claude-shotlist"
     }
   ]
 }

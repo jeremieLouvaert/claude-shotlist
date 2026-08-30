@@ -3,6 +3,8 @@ name: shotlist
 description: Turn a reference video (competitor ad, mood-board clip, dailies) into a per-shot generation brief — one still-image prompt + one motion/camera note per detected cut — for a stills-then-motion pipeline, plus the full editorial analysis (scene-change frames, pacing metrics, 0-10s hook microscope, transcript from captions or Whisper) in an ingest-ready `report.md`. Optional Obsidian auto-ingest (configurable via `$SHOTLIST_VAULT_DIR`, `$WATCH_VAULT_DIR` honored).
 argument-hint: "<video-url-or-path> [why you're studying it]"
 allowed-tools: Bash, Read, AskUserQuestion
+homepage: https://github.com/jeremieLouvaert/claude-shotlist
+repository: https://github.com/jeremieLouvaert/claude-shotlist
 author: jeremie
 license: MIT
 user-invocable: true

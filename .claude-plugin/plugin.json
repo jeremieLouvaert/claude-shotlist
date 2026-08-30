@@ -5,6 +5,8 @@
   "author": {
     "name": "jeremie"
   },
+  "homepage": "https://github.com/jeremieLouvaert/claude-shotlist",
+  "repository": "https://github.com/jeremieLouvaert/claude-shotlist",
   "license": "MIT",
   "keywords": ["video", "shotlist", "shot-prompts", "creative-direction", "image-generation", "storyboard", "youtube", "transcription", "whisper", "yt-dlp", "ffmpeg", "multimodal", "frames", "obsidian"]
 }

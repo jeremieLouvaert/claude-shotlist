@@ -47,11 +47,11 @@ Focused mode (`--start` / `--end`) gets denser per-second budgets when you only 
 
 ## Install
 
-**Not yet published.** This fork lives as a local repo for now; install from a clone:
+Install from a clone:
 
 ```bash
-git clone <this-repo> ~/.claude/skills/shotlist     # Claude Code (manual)
-git clone <this-repo> ~/.codex/skills/shotlist      # Codex / generic skills
+git clone https://github.com/jeremieLouvaert/claude-shotlist ~/.claude/skills/shotlist     # Claude Code (manual)
+git clone https://github.com/jeremieLouvaert/claude-shotlist ~/.codex/skills/shotlist      # Codex / generic skills
 bash scripts/build-skill.sh                          # claude.ai: builds dist/shotlist.skill to upload
 ```
 
