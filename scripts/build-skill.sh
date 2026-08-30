@@ -29,6 +29,9 @@ zip -d "$OUT" \
   "shotlist/hooks/*" \
   "shotlist/commands/*" \
   "shotlist/.claude-plugin/*" \
+  "shotlist/.codex-plugin/*" \
+  "shotlist/decisions.md" \
+  "shotlist/session-log.md" \
   > /dev/null 2>&1 || true
 
 COUNT=$(unzip -l "$OUT" | tail -1 | awk '{print $2}')
