@@ -207,3 +207,40 @@ files; every pre-existing script stays byte-identical to 0.4.0. Tests
 assert remix.md schema and workflow-graph integrity (unique ids, every
 link's endpoints exist with correct slot indices, per-shot node counts) —
 not pixel output, which only a live ComfyUI can prove.
+
+
+## 2026-08-30 — Remix revisions from the first live ComfyUI test
+
+**Consistency chaining (Jérémie's finding, first real run).** Generating
+first and last frames independently from the same reference makes the
+model invent the transposed subject twice — the Defenders didn't match
+across the pair. Fix: stills become two passes. Pass 1 generates the
+FIRST frame from the reference; the user approves a pick
+(`shotNN_first.png`); pass 2 generates the LAST frame **conditioned on
+the approved first frame**, with `last_frame_prompt` redefined as a
+delta instruction ("what changed by the end of the shot"). The human
+approval gate between passes is load-bearing, not overhead — chaining
+from an unapproved frame would propagate a bad pick into everything
+downstream.
+
+**One combined workflow, dual engines, mute-to-choose.** Sections A
+(stills) and B (video) in one litegraph file. Per stage both engines are
+emitted — stills: Nano Banana Pro (`gemini-3-pro-image-preview`) and
+`gpt-image-2`; video: Seedance (`ByteDance2FirstLastFrameNode`) and
+`GeminiVideoOmni` (first→image_1, last→image_2) — with the non-chosen
+engine muted (litegraph mode 2). Engine switching is a UI mute-toggle,
+not a re-emit. `"Seedance 2.5"` is emitted per Jérémie's stated use;
+only `"Seedance 2.0"` is evidenced in captures — flagged in SKILL.md.
+
+**Hash-vault caching on every generation branch (Jérémie's request).**
+The triad from his own workflows, wiring read from the capture:
+prompt → `DeterministicHashVault.payload_string`; DHV.hash_key →
+`HashVaultSave.hash_key`; gen output → HVS.api_output; DHV.cached_data +
+DHV.is_cached + HVS.api_output → `LazyAPISwitch`; savers consume
+LAS.final_output. One deviation from the evidenced usage: conditioning
+images are wired into DHV's `any_input` slots so the cache key includes
+them — his instances key on the prompt alone, which would serve stale
+results when a re-picked first frame reuses an unchanged last-frame
+prompt. This wiring is UNVERIFIED against a live run; if the node can't
+hash image tensors, unplug the any_input links and fall back to
+prompt-only keys.

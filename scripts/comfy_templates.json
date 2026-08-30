@@ -517,5 +517,186 @@
   ],
   "color": "#432",
   "bgcolor": "#653"
+ },
+ "HashVaultSave": {
+  "id": 1123,
+  "type": "HashVaultSave",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   320,
+   110
+  ],
+  "flags": {},
+  "order": 43,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "hash_key",
+    "type": "STRING",
+    "link": 1401
+   },
+   {
+    "name": "api_output",
+    "type": "*",
+    "link": 1402
+   }
+  ],
+  "outputs": [
+   {
+    "name": "api_output",
+    "type": "*",
+    "slot_index": 0,
+    "links": [
+     1404
+    ]
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfyui-api-optimizer",
+   "ver": "3c8ea5fd20db07def67620c319f4c986f6f4742d",
+   "Node name for S&R": "HashVaultSave"
+  },
+  "widgets_values": [
+   ""
+  ]
+ },
+ "DeterministicHashVault": {
+  "id": 1134,
+  "type": "DeterministicHashVault",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   340,
+   180
+  ],
+  "flags": {},
+  "order": 17,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "payload_string",
+    "shape": 7,
+    "type": "STRING",
+    "link": 1499
+   },
+   {
+    "name": "any_input",
+    "shape": 7,
+    "type": "*",
+    "link": null
+   },
+   {
+    "name": "any_input_2",
+    "shape": 7,
+    "type": "*",
+    "link": null
+   },
+   {
+    "name": "any_input_3",
+    "shape": 7,
+    "type": "*",
+    "link": null
+   },
+   {
+    "name": "any_input_4",
+    "shape": 7,
+    "type": "*",
+    "link": null
+   }
+  ],
+  "outputs": [
+   {
+    "name": "cached_data",
+    "type": "*",
+    "slot_index": 0,
+    "links": [
+     1420
+    ]
+   },
+   {
+    "name": "is_cached",
+    "type": "INT",
+    "slot_index": 1,
+    "links": [
+     1422
+    ]
+   },
+   {
+    "name": "hash_key",
+    "type": "STRING",
+    "slot_index": 2,
+    "links": [
+     1423
+    ]
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfyui-api-optimizer",
+   "ver": "3c8ea5fd20db07def67620c319f4c986f6f4742d",
+   "Node name for S&R": "DeterministicHashVault"
+  },
+  "widgets_values": [
+   0
+  ]
+ },
+ "LazyAPISwitch": {
+  "id": 1132,
+  "type": "LazyAPISwitch",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   320,
+   130
+  ],
+  "flags": {},
+  "order": 42,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "cached_data",
+    "shape": 7,
+    "type": "*",
+    "link": 1420
+   },
+   {
+    "name": "api_data",
+    "shape": 7,
+    "type": "*",
+    "link": 1421
+   },
+   {
+    "name": "is_cached",
+    "type": "INT",
+    "widget": {
+     "name": "is_cached"
+    },
+    "link": 1422
+   }
+  ],
+  "outputs": [
+   {
+    "name": "final_output",
+    "type": "*",
+    "slot_index": 0,
+    "links": [
+     1427
+    ]
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfyui-api-optimizer",
+   "ver": "3c8ea5fd20db07def67620c319f4c986f6f4742d",
+   "Node name for S&R": "LazyAPISwitch"
+  },
+  "widgets_values": [
+   0
+  ]
  }
 }

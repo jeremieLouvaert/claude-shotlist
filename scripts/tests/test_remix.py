@@ -101,10 +101,20 @@ class TestRemix(unittest.TestCase):
 
         ids = [n["id"] for n in w["nodes"]]
         self.assertEqual(len(ids), len(set(ids)), "node ids must be unique")
-        # per shot: stills 1 ref + 2x(prompt + 2 gen + 2 save) = 11; video 2 load + prompt + 2 gen + 2 save = 7
-        self.assertEqual(len(w["nodes"]), 2 * 18)
-        # per shot: stills 2x(3+3) = 12 links; video 4+4 = 8
-        self.assertEqual(len(w["links"]), 2 * 20)
+        from collections import Counter
+        counts = Counter(n["type"] for n in w["nodes"])
+        # 2 shots: 4 LoadImage each (ref, approved-first, video first/last)
+        self.assertEqual(counts["LoadImage"], 2 * 4)
+        # every generation branch is wrapped in the hash-vault triad:
+        # per shot 2 halves x 2 stills engines + 2 video engines = 6 triads
+        for t in ("DeterministicHashVault", "HashVaultSave", "LazyAPISwitch"):
+            self.assertEqual(counts[t], 2 * 6, t)
+        self.assertEqual(counts["GeminiImage2Node"], 2 * 2)
+        self.assertEqual(counts["OpenAIGPTImageNodeV2"], 2 * 2)
+        self.assertEqual(counts["ByteDance2FirstLastFrameNode"], 2)
+        self.assertEqual(counts["GeminiVideoOmni"], 2)
+        self.assertEqual(counts["SaveImage"], 2 * 4)
+        self.assertEqual(counts["SaveVideo"], 2 * 2)
         # 2 groups per shot + 2 section super-groups
         self.assertEqual(len(w["groups"]), 2 * 2 + 2)
         byid = {n["id"]: n for n in w["nodes"]}
@@ -112,6 +122,46 @@ class TestRemix(unittest.TestCase):
             self.assertIn(lid, byid[src]["outputs"][oslot]["links"])
             self.assertEqual(byid[dst]["inputs"][islot]["link"], lid)
         self.assertEqual(w["last_node_id"], max(ids))
+        # savers must consume the vault switch, not the raw gen node
+        for n in w["nodes"]:
+            if n["type"] in ("SaveImage", "SaveVideo"):
+                lid = n["inputs"][0]["link"]
+                src = next(l for l in w["links"] if l[0] == lid)[1]
+                self.assertEqual(byid[src]["type"], "LazyAPISwitch")
+
+    def test_last_frame_conditioned_on_approved_first(self):
+        w = self._emit()
+        byid = {n["id"]: n for n in w["nodes"]}
+        linkmap = {l[0]: l for l in w["links"]}
+        def src_of(node, in_name):
+            link = next(i["link"] for i in node["inputs"] if i["name"] == in_name)
+            return byid[linkmap[link][1]]
+        for n in w["nodes"]:
+            if n["type"] != "GeminiImage2Node":
+                continue
+            cond = src_of(n, "images")
+            self.assertEqual(cond["type"], "LoadImage")
+            save_prefixes = []
+            for l in w["links"]:
+                if l[1] == n["id"]:
+                    dst = byid[l[3]]
+                    if dst["type"] == "HashVaultSave":
+                        save_prefixes.append(dst)
+            fname = cond["widgets_values"][0]
+            # first-frame gens condition on the reference; last-frame gens on the
+            # approved first still
+            self.assertTrue(fname.endswith("_ref.jpg") or fname.endswith("_first.png"))
+
+    def test_vault_keyed_on_prompt_and_conditioning(self):
+        w = self._emit()
+        byid = {n["id"]: n for n in w["nodes"]}
+        linkmap = {l[0]: l for l in w["links"]}
+        for n in w["nodes"]:
+            if n["type"] != "DeterministicHashVault":
+                continue
+            wired = {i["name"] for i in n["inputs"] if i.get("link") is not None}
+            self.assertIn("payload_string", wired)
+            self.assertIn("any_input", wired, "conditioning image must be in the cache key")
 
     def test_stills_wiring_widgets_and_engine_muting(self):
         w = self._emit()  # default: nano active, gpt muted
@@ -166,8 +216,9 @@ class TestRemix(unittest.TestCase):
             self.assertNotEqual(wired["model.images.image_1"], wired["model.images.image_2"])
         loads = sorted(n["widgets_values"][0] for n in w["nodes"]
                        if n["type"] == "LoadImage" and "_ref" not in n["widgets_values"][0])
-        self.assertEqual(loads, ["shot01_first.png", "shot01_last.png",
-                                 "shot02_first.png", "shot02_last.png"])
+        # shotNN_first.png appears twice: stills pass-2 conditioning + video input
+        self.assertEqual(loads, ["shot01_first.png", "shot01_first.png", "shot01_last.png",
+                                 "shot02_first.png", "shot02_first.png", "shot02_last.png"])
 
     def test_gpt_stills_engine_active_when_selected(self):
         w = self._emit(stills_engine="gpt")

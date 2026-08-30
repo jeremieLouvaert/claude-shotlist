@@ -135,12 +135,14 @@ def write_remix(workdir: Path, brief: str, aspect: str) -> Path:
         "",
         f"_Transposition brief: **{brief}**. Target aspect ratio: **{aspect}**._",
         "",
-        "_Fill every marker, then run `remix.py <workdir> --emit`. Each shot's",
-        "original frame is fed to the stills generator as image conditioning, so",
-        "prompts are INSTRUCTIONS AGAINST THE REFERENCE (\"replace the horses",
-        "with…\", \"reframe to 16:9 extending the landscape…\"), not from-scratch",
-        "scene descriptions. `video_prompt` drives Seedance between the locked",
-        "first and last frame — describe the motion, not the look._",
+        "_Fill every marker, then run `remix.py <workdir> --emit`.",
+        "`first_frame_prompt` is an INSTRUCTION AGAINST THE REFERENCE FRAME",
+        "(\"replace the horses with…\", \"reframe to 16:9 extending the",
+        "landscape…\"). `last_frame_prompt` is an instruction against the",
+        "APPROVED FIRST FRAME — the still you pick becomes its conditioning",
+        "image, so describe only what changes by the end of the shot; that is",
+        "what keeps subjects consistent within a shot. `video_prompt` drives",
+        "the video model between the locked frames — motion, not look._",
         "",
         "## Global style",
         "",
@@ -165,8 +167,9 @@ def write_remix(workdir: Path, brief: str, aspect: str) -> Path:
                 "transposed subject, target aspect reframe; opening state of the shot"
             ),
             "- **last_frame_prompt:** " + _pending(
-                "same, but the state at the END of the shot — what moved, "
-                "arrived or changed; keep world and grade identical to first_frame_prompt"
+                "instruction against the APPROVED FIRST FRAME (it is the "
+                "conditioning image, not the reference): what moved, arrived or "
+                "changed by the END of the shot; keep everything else identical"
             ),
             "- **video_prompt:** " + _pending(
                 "motion between the two locked frames for Seedance: camera move, "
@@ -284,11 +287,32 @@ class Graph:
 
 
 ROW_H = 1960                     # vertical space per shot row (2 halves x 2 engines)
-SCOL = [0, 460, 1080, 1760]      # stills: ref / prompt / gen / save
-VX = 2700                        # video section x offset
-VCOL = [VX, VX + 460, VX + 1080, VX + 1760]
+SCOL = [0, 460, 1080, 1720, 2360]   # stills: ref / prompt / gen / vault / save
+VX = 3300                        # video section x offset
+VCOL = [VX, VX + 460, VX + 1080, VX + 1720, VX + 2360]
 HALF_DY = 980                    # first vs last half offset
 ENG_DY = 460                     # engine A vs engine B offset within a half
+
+
+def _vaulted(g: "Graph", gen: dict, out_name: str, prompt_node: dict,
+             cond_imgs: list, xv: float, xs: float, y: float,
+             mode: int) -> dict:
+    """Wrap a generation node in the hash-vault caching triad
+    (DeterministicHashVault -> HashVaultSave -> LazyAPISwitch), keyed on the
+    prompt string plus the conditioning image(s). Returns the LazyAPISwitch
+    whose final_output downstream savers should consume."""
+    dhv = g.add("DeterministicHashVault", [xv, y], mode=mode)
+    hvs = g.add("HashVaultSave", [xv, y + 170], mode=mode)
+    las = g.add("LazyAPISwitch", [xs - 420, y + 60], mode=mode)
+    g.link(prompt_node, "STRING", dhv, "payload_string")
+    for i, img in enumerate(cond_imgs[:4]):
+        g.link(img, "IMAGE", dhv, "any_input" if i == 0 else f"any_input_{i + 1}")
+    g.link(dhv, "hash_key", hvs, "hash_key")
+    g.link(gen, out_name, hvs, "api_output")
+    g.link(dhv, "cached_data", las, "cached_data")
+    g.link(dhv, "is_cached", las, "is_cached")
+    g.link(hvs, "api_output", las, "api_data")
+    return las
 
 
 def build_combined(templates: dict, shots: list[dict], meta: dict,
@@ -304,10 +328,14 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         y = 120 + row * ROW_H
         nn = f"shot{s['n']:02d}"
 
-        # ---- stills half-rows: first + last, each with both engines
+        # ---- stills pass 1: FIRST frame from the reference; pass 2: LAST frame
+        # conditioned on the APPROVED first frame (shotNN_first.png), so the
+        # transposed subjects stay consistent within the shot.
         ref = g.add("LoadImage", [SCOL[0], y],
                     {LOADIMAGE_W_FILE: f"{nn}_ref{Path(s['frame']).suffix}"})
-        for half, key in enumerate(("first", "last")):
+        approved_first = g.add("LoadImage", [SCOL[0], y + HALF_DY],
+                               {LOADIMAGE_W_FILE: f"{nn}_first.png"})
+        for half, (key, cond) in enumerate((("first", ref), ("last", approved_first))):
             hy = y + half * HALF_DY
             prompt_text = s[key] + (f"\n\nStyle: {style}" if style else "")
             p = g.add("PrimitiveStringMultiline", [SCOL[1], hy],
@@ -321,25 +349,30 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
                           GEMINI_W_ASPECT: aspect,
                           GEMINI_W_SEED: 1000 * s["n"] + half},
                          mode=nano_mode)
-            nano_save = g.add("SaveImage", [SCOL[3], hy],
+            g.link(cond, "IMAGE", nano, "images")
+            g.link(p, "STRING", nano, "prompt")
+            nano_out = _vaulted(g, nano, "IMAGE", p, [cond],
+                                SCOL[3], SCOL[4], hy, nano_mode)
+            nano_save = g.add("SaveImage", [SCOL[4], hy],
                               {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}_nano"},
                               mode=nano_mode)
-            g.link(ref, "IMAGE", nano, "images")
-            g.link(p, "STRING", nano, "prompt")
-            g.link(nano, "IMAGE", nano_save, "images")
+            g.link(nano_out, "final_output", nano_save, "images")
 
             gpt = g.add("OpenAIGPTImageNodeV2", [SCOL[2], hy + ENG_DY],
                         {GPT_W_WIDTH: gw, GPT_W_HEIGHT: gh},
                         mode=gpt_mode)
-            gpt_save = g.add("SaveImage", [SCOL[3], hy + ENG_DY],
+            g.link(cond, "IMAGE", gpt, "model.images.image_1")
+            g.link(p, "STRING", gpt, "prompt")
+            gpt_out = _vaulted(g, gpt, "IMAGE", p, [cond],
+                               SCOL[3], SCOL[4], hy + ENG_DY, gpt_mode)
+            gpt_save = g.add("SaveImage", [SCOL[4], hy + ENG_DY],
                              {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}_gpt"},
                              mode=gpt_mode)
-            g.link(ref, "IMAGE", gpt, "model.images.image_1")
-            g.link(p, "STRING", gpt, "prompt")
-            g.link(gpt, "IMAGE", gpt_save, "images")
+            g.link(gpt_out, "final_output", gpt_save, "images")
 
-        g.group(f"Shot {s['n']} — STILLS first/last (unmute one engine)",
-                [SCOL[0] - 30, y - 60, SCOL[3] + 450, ROW_H - 80])
+        g.group(f"Shot {s['n']} — STILLS: pass 1 first from ref, pass 2 last "
+                f"from approved first (unmute one engine)",
+                [SCOL[0] - 30, y - 60, SCOL[4] + 450, ROW_H - 80])
 
         # ---- video row: picked stills -> Seedance + Omni, one muted
         first = g.add("LoadImage", [VCOL[0], y], {LOADIMAGE_W_FILE: f"{nn}_first.png"})
@@ -353,30 +386,34 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         sd = g.add("ByteDance2FirstLastFrameNode", [VCOL[2], y],
                    {BYTEDANCE_W_MODEL: seedance_model, BYTEDANCE_W_SEED: s["n"]},
                    mode=sd_mode)
-        sd_save = g.add("SaveVideo", [VCOL[3], y],
-                        {SAVEVIDEO_W_PREFIX: f"remix/{nn}_seedance"}, mode=sd_mode)
         g.link(first, "IMAGE", sd, "first_frame")
         g.link(last, "IMAGE", sd, "last_frame")
         g.link(vp, "STRING", sd, "model.prompt")
-        g.link(sd, "VIDEO", sd_save, "video")
+        sd_out = _vaulted(g, sd, "VIDEO", vp, [first, last],
+                          VCOL[3], VCOL[4], y, sd_mode)
+        sd_save = g.add("SaveVideo", [VCOL[4], y],
+                        {SAVEVIDEO_W_PREFIX: f"remix/{nn}_seedance"}, mode=sd_mode)
+        g.link(sd_out, "final_output", sd_save, "video")
 
         omni = g.add("GeminiVideoOmni", [VCOL[2], y + ENG_DY],
                      {OMNI_W_SEED: s["n"]}, mode=omni_mode)
-        omni_save = g.add("SaveVideo", [VCOL[3], y + ENG_DY],
-                          {SAVEVIDEO_W_PREFIX: f"remix/{nn}_omni"}, mode=omni_mode)
         g.link(first, "IMAGE", omni, "model.images.image_1")
         g.link(last, "IMAGE", omni, "model.images.image_2")
         g.link(vp, "STRING", omni, "model.prompt")
-        g.link(omni, "VIDEO", omni_save, "video")
+        omni_out = _vaulted(g, omni, "VIDEO", vp, [first, last],
+                            VCOL[3], VCOL[4], y + ENG_DY, omni_mode)
+        omni_save = g.add("SaveVideo", [VCOL[4], y + ENG_DY],
+                          {SAVEVIDEO_W_PREFIX: f"remix/{nn}_omni"}, mode=omni_mode)
+        g.link(omni_out, "final_output", omni_save, "video")
 
         g.group(f"Shot {s['n']} — VIDEO first→last (unmute one engine)",
-                [VCOL[0] - 30, y - 60, VCOL[3] + 450, ROW_H - 80])
+                [VCOL[0] - 30, y - 60, VCOL[4] + 450, ROW_H - 80])
 
     total_h = 120 + n_rows * ROW_H
     g.group("A — STILLS: generate first/last frames per shot",
-            [SCOL[0] - 60, -40, SCOL[3] + 510, total_h])
+            [SCOL[0] - 60, -40, SCOL[4] + 510, total_h])
     g.group("B — VIDEO: animate the picked stills",
-            [VCOL[0] - 60, -40, VCOL[3] + 510, total_h])
+            [VCOL[0] - 60, -40, VCOL[4] + 510, total_h])
     return g.dump()
 
 
@@ -415,9 +452,11 @@ def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedan
     print(f"[remix] reference frames: {indir} ({copied} copied)")
     print("[remix] next:")
     print("  1. copy comfy/input/* into ComfyUI's input folder, load remix_workflow.json")
-    print("  2. run section A (STILLS) — first/last frames per shot land in output/remix/")
-    print("  3. pick winners, rename to shotNN_first.png / shotNN_last.png, drop in ComfyUI input")
-    print("  4. run section B (VIDEO) — clips land in output/remix/")
+    print("  2. run section A pass 1: FIRST frames generate from the references")
+    print("  3. pick winners, rename to shotNN_first.png, drop in ComfyUI input")
+    print("  4. run section A pass 2: LAST frames generate FROM the approved firsts (consistency)")
+    print("  5. pick winners, rename to shotNN_last.png, drop in ComfyUI input")
+    print("  6. run section B (VIDEO) — clips land in output/remix/")
 
 
 def main() -> None:
