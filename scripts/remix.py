@@ -261,12 +261,12 @@ class Graph:
         src["outputs"][oi]["links"].append(self._link)
         dst["inputs"][ii]["link"] = self._link
 
-    def group(self, title: str, bounding: list) -> None:
+    def group(self, title: str, bounding: list, color: str = "#3f789e") -> None:
         self.groups.append({
             "id": len(self.groups) + 1,
             "title": title,
             "bounding": bounding,
-            "color": "#3f789e",
+            "color": color,
             "font_size": 24,
             "flags": {},
         })
@@ -286,24 +286,29 @@ class Graph:
         }
 
 
-ROW_H = 1960                     # vertical space per shot row (2 halves x 2 engines)
-SCOL = [0, 460, 1080, 1720, 2360]   # stills: ref / prompt / gen / vault / save
-VX = 3300                        # video section x offset
-VCOL = [VX, VX + 460, VX + 1080, VX + 1720, VX + 2360]
-HALF_DY = 980                    # first vs last half offset
-ENG_DY = 460                     # engine A vs engine B offset within a half
+# Layout is computed from the captured node sizes (prompt node is 537x671,
+# gens ~400x348, vault nodes ~340 wide) so nothing overlaps at 100% zoom.
+ROW_H = 2700                     # vertical space per shot row (2 halves x 2 engines)
+SCOL = [0, 380, 1020, 1540, 2340, 2700]   # ref/get, prompt, gen, vault, send, save
+VX = 3500                        # video section x offset
+VCOL = [VX, VX + 380, VX + 1020, VX + 1540, VX + 2340]
+HALF_DY = 1250                   # first vs last half offset
+ENG_DY = 560                     # engine A vs engine B offset within a half
+COLOR_STILLS = "#3f789e"         # blue per-shot groups (section A)
+COLOR_VIDEO = "#3f9e57"          # green per-shot groups (section B)
+COLOR_STILLS_BG = "#29455c"      # section super-group backgrounds
+COLOR_VIDEO_BG = "#2c4a33"
 
 
 def _vaulted(g: "Graph", gen: dict, out_name: str, prompt_node: dict,
-             cond_imgs: list, xv: float, xs: float, y: float,
-             mode: int) -> dict:
+             cond_imgs: list, xv: float, y: float, mode: int) -> dict:
     """Wrap a generation node in the hash-vault caching triad
     (DeterministicHashVault -> HashVaultSave -> LazyAPISwitch), keyed on the
     prompt string plus the conditioning inputs (as (node, out_name) pairs).
     Returns the LazyAPISwitch whose final_output downstream consumers use."""
     dhv = g.add("DeterministicHashVault", [xv, y], mode=mode)
-    hvs = g.add("HashVaultSave", [xv, y + 170], mode=mode)
-    las = g.add("LazyAPISwitch", [xs - 420, y + 60], mode=mode)
+    hvs = g.add("HashVaultSave", [xv, y + 240], mode=mode)
+    las = g.add("LazyAPISwitch", [xv + 400, y + 90], mode=mode)
     g.link(prompt_node, "STRING", dhv, "payload_string")
     for i, (img, img_out) in enumerate(cond_imgs[:4]):
         g.link(img, img_out, dhv, "any_input" if i == 0 else f"any_input_{i + 1}")
@@ -354,11 +359,11 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
             g.link(cond, cond_out, nano, "images")
             g.link(p, "STRING", nano, "prompt")
             nano_out = _vaulted(g, nano, "IMAGE", p, [(cond, cond_out)],
-                                SCOL[3], SCOL[4], hy, nano_mode)
+                                SCOL[3], hy, nano_mode)
             nano_send = g.add("WirelessSend", [SCOL[4], hy],
                               {0: f"{nn}_{key}"}, mode=nano_mode)
             g.link(nano_out, "final_output", nano_send, "value")
-            nano_save = g.add("SaveImage", [SCOL[4] + 320, hy],
+            nano_save = g.add("SaveImage", [SCOL[5], hy],
                               {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}_nano"},
                               mode=nano_mode)
             g.link(nano_send, "passthrough", nano_save, "images")
@@ -369,22 +374,23 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
             g.link(cond, cond_out, gpt, "model.images.image_1")
             g.link(p, "STRING", gpt, "prompt")
             gpt_out = _vaulted(g, gpt, "IMAGE", p, [(cond, cond_out)],
-                               SCOL[3], SCOL[4], hy + ENG_DY, gpt_mode)
+                               SCOL[3], hy + ENG_DY, gpt_mode)
             gpt_send = g.add("WirelessSend", [SCOL[4], hy + ENG_DY],
                              {0: f"{nn}_{key}"}, mode=gpt_mode)
             g.link(gpt_out, "final_output", gpt_send, "value")
-            gpt_save = g.add("SaveImage", [SCOL[4] + 320, hy + ENG_DY],
+            gpt_save = g.add("SaveImage", [SCOL[5], hy + ENG_DY],
                              {SAVEIMAGE_W_PREFIX: f"remix/{nn}_{key}_gpt"},
                              mode=gpt_mode)
             g.link(gpt_send, "passthrough", gpt_save, "images")
 
         g.group(f"Shot {s['n']} — STILLS: first from ref, last wireless-chained "
                 f"from first (unmute one engine)",
-                [SCOL[0] - 30, y - 60, SCOL[4] + 450, ROW_H - 80])
+                [SCOL[0] - 40, y - 80, SCOL[5] + 340, ROW_H - 120],
+                color=COLOR_STILLS)
 
         # ---- video row: wireless-chained stills -> Seedance + Omni, one muted
         first = g.add("WirelessGet", [VCOL[0], y], {0: f"{nn}_first"})
-        last = g.add("WirelessGet", [VCOL[0], y + HALF_DY], {0: f"{nn}_last"})
+        last = g.add("WirelessGet", [VCOL[0], y + 140], {0: f"{nn}_last"})
         vp = g.add("StringConstantMultiline", [VCOL[1], y], {STRING_W_TEXT: s["video"]})
 
         sd_mode = MODE_ACTIVE if video_engine == "seedance" else MODE_MUTED
@@ -397,7 +403,7 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         g.link(last, "value", sd, "last_frame")
         g.link(vp, "STRING", sd, "model.prompt")
         sd_out = _vaulted(g, sd, "VIDEO", vp, [(first, "value"), (last, "value")],
-                          VCOL[3], VCOL[4], y, sd_mode)
+                          VCOL[3], y, sd_mode)
         sd_save = g.add("SaveVideo", [VCOL[4], y],
                         {SAVEVIDEO_W_PREFIX: f"remix/{nn}_seedance"}, mode=sd_mode)
         g.link(sd_out, "final_output", sd_save, "video")
@@ -408,19 +414,20 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         g.link(last, "value", omni, "model.images.image_2")
         g.link(vp, "STRING", omni, "model.prompt")
         omni_out = _vaulted(g, omni, "VIDEO", vp, [(first, "value"), (last, "value")],
-                            VCOL[3], VCOL[4], y + ENG_DY, omni_mode)
+                            VCOL[3], y + ENG_DY, omni_mode)
         omni_save = g.add("SaveVideo", [VCOL[4], y + ENG_DY],
                           {SAVEVIDEO_W_PREFIX: f"remix/{nn}_omni"}, mode=omni_mode)
         g.link(omni_out, "final_output", omni_save, "video")
 
         g.group(f"Shot {s['n']} — VIDEO first→last (unmute one engine)",
-                [VCOL[0] - 30, y - 60, VCOL[4] + 450, ROW_H - 80])
+                [VCOL[0] - 40, y - 80, VCOL[4] + 720, ROW_H - 120],
+                color=COLOR_VIDEO)
 
     total_h = 120 + n_rows * ROW_H
     g.group("A — STILLS: generate first/last frames per shot",
-            [SCOL[0] - 60, -40, SCOL[4] + 510, total_h])
-    g.group("B — VIDEO: animate the picked stills",
-            [VCOL[0] - 60, -40, VCOL[4] + 510, total_h])
+            [SCOL[0] - 80, -60, SCOL[5] + 400, total_h], color=COLOR_STILLS_BG)
+    g.group("B — VIDEO: animate the wireless-chained stills",
+            [VCOL[0] - 80, -60, VCOL[4] + 780, total_h], color=COLOR_VIDEO_BG)
     return g.dump()
 
 

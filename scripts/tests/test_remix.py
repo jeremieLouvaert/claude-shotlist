@@ -227,6 +227,22 @@ class TestRemix(unittest.TestCase):
         self.assertEqual(gets, ["shot01_first", "shot01_first", "shot01_last",
                                 "shot02_first", "shot02_first", "shot02_last"])
 
+    def test_no_node_overlaps_and_section_colors(self):
+        w = self._emit()
+        boxes = []
+        for n in w["nodes"]:
+            x, y = n["pos"]
+            wd, h = n["size"]
+            boxes.append((n["type"], x, y, x + wd, y + h))
+        for i in range(len(boxes)):
+            for j in range(i + 1, len(boxes)):
+                a, b = boxes[i], boxes[j]
+                intersects = a[1] < b[3] and b[1] < a[3] and a[2] < b[4] and b[2] < a[4]
+                self.assertFalse(intersects, f"nodes overlap: {a[0]} vs {b[0]}")
+        # stills and video sections use distinct group colors
+        colors = {g["color"] for g in w["groups"]}
+        self.assertEqual(len(colors), 4, "per-shot + section colors, stills vs video")
+
     def test_gpt_stills_engine_active_when_selected(self):
         w = self._emit(stills_engine="gpt")
         for n in w["nodes"]:
