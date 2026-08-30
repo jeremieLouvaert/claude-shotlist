@@ -24,15 +24,45 @@ git archive --format=zip --prefix=shotlist/ --output="$OUT" HEAD
 # needs hooks/, commands/, and .claude-plugin/ in the git archive (that's why
 # they are NOT in .gitattributes export-ignore), but the .skill bundle should
 # strip them to keep a single canonical SKILL.md and stay well under the
-# 200-file cap.
-zip -d "$OUT" \
-  "shotlist/hooks/*" \
-  "shotlist/commands/*" \
-  "shotlist/.claude-plugin/*" \
-  "shotlist/.codex-plugin/*" \
-  "shotlist/decisions.md" \
-  "shotlist/session-log.md" \
-  > /dev/null 2>&1 || true
+# 200-file cap. Stripping is done in Python because Info-ZIP's `zip -d` is not
+# installed everywhere (a silent no-op behind `|| true` shipped an unstripped
+# bundle once); the rewrite below fails loudly instead.
+PYBIN=""
+for c in python3 python; do
+  if "$c" -c "" >/dev/null 2>&1; then PYBIN="$c"; break; fi
+done
+if [ -z "$PYBIN" ]; then
+  echo "error: python is required to strip the bundle" >&2
+  exit 1
+fi
+"$PYBIN" - "$OUT" <<'PY'
+import fnmatch, os, sys, zipfile
+
+EXCLUDE = [
+    "shotlist/hooks/*",
+    "shotlist/commands/*",
+    "shotlist/.claude-plugin/*",
+    "shotlist/.codex-plugin/*",
+    "shotlist/decisions.md",
+    "shotlist/session-log.md",
+]
+
+out = sys.argv[1]
+tmp = out + ".tmp"
+with zipfile.ZipFile(out) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
+    zout.comment = zin.comment  # git archive stores the commit hash here
+    for info in zin.infolist():
+        name = info.filename
+        # a pattern like "shotlist/hooks/*" also drops the "shotlist/hooks/" dir entry
+        if any(fnmatch.fnmatch(name, p) for p in EXCLUDE):
+            continue
+        zout.writestr(info, zin.read(name))
+with zipfile.ZipFile(tmp) as z:
+    leftover = [n for n in z.namelist() if any(fnmatch.fnmatch(n, p) for p in EXCLUDE)]
+if leftover:
+    sys.exit(f"error: strip left excluded entries in bundle: {leftover}")
+os.replace(tmp, out)
+PY
 
 COUNT=$(unzip -l "$OUT" | tail -1 | awk '{print $2}')
 SIZE=$(du -h "$OUT" | cut -f1)
