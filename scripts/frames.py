@@ -230,13 +230,18 @@ def extract_scene_change(
     cmd += [
         "-i", str(Path(video_path).resolve()),
         "-vf", vf,
-        "-vsync", "vfr",
+        "-fps_mode", "vfr",
         "-frames:v", str(max_frames),
         "-q:v", "4",
         output_pattern,
     ]
 
     result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 and "fps_mode" in (result.stderr or ""):
+        # ffmpeg < 5.1 doesn't know -fps_mode; retry with the legacy flag
+        # (which ffmpeg >= 8 in turn removed — hence trying fps_mode first).
+        legacy = [("-vsync" if a == "-fps_mode" else a) for a in cmd]
+        result = subprocess.run(legacy, capture_output=True, text=True)
     if result.returncode != 0:
         raise SystemExit(f"ffmpeg scene-change extraction failed: {result.stderr.strip()}")
 

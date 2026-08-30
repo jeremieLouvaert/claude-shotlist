@@ -39,6 +39,73 @@ def _yaml_list(items: list[str]) -> str:
     return "[" + ", ".join(items) + "]"
 
 
+def _shot_prompt_lines(
+    all_frames: list[dict],
+    hero_frames: list[dict],
+    duration_seconds: float,
+) -> list[str]:
+    """Build the `## Shot prompts` section.
+
+    One entry per frame when frames came from scene-change sampling (each
+    frame IS a shot boundary there). On uniform-fallback sampling there are
+    no shot boundaries — entries cover hero frames only, with a note. The
+    prompt/motion fields are pending-fill markers: Claude writes them at
+    Step 4 from the frames + transcript already in context.
+    """
+    lines: list[str] = []
+    lines.append("## Shot prompts")
+    lines.append("")
+    lines.append(
+        "_Per-shot generation prompts for a stills-then-motion pipeline: "
+        "lock a still per shot first, then run the motion pass on the "
+        "locked stills. Hand-edit before feeding to a generator._"
+    )
+    lines.append("")
+
+    if not all_frames:
+        lines.append("_No frames extracted — no shot prompts._")
+        lines.append("")
+        return lines
+
+    scene_mode = all_frames[0].get("source") == "scene-change"
+    if scene_mode:
+        shot_frames = all_frames
+    else:
+        shot_frames = hero_frames
+        lines.append(
+            "_Frames were uniform-sampled (no scene cuts detected — "
+            "static or screen-recorded source), so per-shot boundaries "
+            "don't exist. Prompts below cover the hero frames only._"
+        )
+        lines.append("")
+
+    for i, frame in enumerate(shot_frames):
+        t = frame["timestamp_seconds"]
+        if scene_mode:
+            if i + 1 < len(shot_frames):
+                next_t = shot_frames[i + 1]["timestamp_seconds"]
+            else:
+                next_t = duration_seconds
+            span = f" (~{max(0.0, next_t - t):.1f}s to next cut)" if next_t > 0 else ""
+        else:
+            span = ""
+        name = Path(frame["path"]).name
+        lines.append(f"### Shot {i + 1} — [{_fmt_time(t)}] `{name}`{span}")
+        lines.append("")
+        lines.append("- **image_prompt:** " + _pending(
+            "still-image generation prompt for this exact frame: subject, "
+            "composition, camera angle/lens feel, lighting, color grade, "
+            "material/texture cues. Write it the way a director briefs a "
+            "stills artist, not a caption."
+        ))
+        lines.append("- **motion_note:** " + _pending(
+            "1-2 lines: camera movement and pacing into/out of this shot, "
+            "for the motion pass once the still is locked."
+        ))
+        lines.append("")
+    return lines
+
+
 def write_report(
     out_path: Path,
     source: str,
@@ -52,6 +119,7 @@ def write_report(
     pacing: dict,
     hook: dict,
     watched_at: _dt.datetime | None = None,
+    include_shot_prompts: bool = True,
 ) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     watched_at = watched_at or _dt.datetime.now().astimezone()
@@ -127,6 +195,9 @@ def write_report(
         "no on-screen text.' Inferred from pacing numbers + hero frames."
     ))
     lines.append("")
+
+    if include_shot_prompts:
+        lines.extend(_shot_prompt_lines(all_frames, hero_frames, duration_seconds))
 
     lines.append("## Quotable moments")
     lines.append("")

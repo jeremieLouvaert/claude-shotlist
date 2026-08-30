@@ -19,7 +19,8 @@ You don't have a video input; this skill gives you one. A Python script download
 - **Scene-change frame sampling** — one frame per detected shot instead of uniform ticks. Cuts the frame budget on long videos while capturing every transition.
 - **Editorial pacing metrics** — cuts/min, mean shot length, motion (when available). Lets you reason about pacing the way an editor does.
 - **Hook microscope** — first 10s auto-runs at 2 fps + word-level Whisper. The single most leveraged 10 seconds of any video deserves dense treatment.
-- **Structured `report.md`** — every watch emits an ingest-shaped report at `<workdir>/report.md` with TL;DR, key moments, hook breakdown, editorial profile, quotable moments, entities, concepts, and transcript. Narrative sections are emitted as `<!-- pending Claude fill: ... -->` markers — you fill them in before offering ingest.
+- **Structured `report.md`** — every watch emits an ingest-shaped report at `<workdir>/report.md` with TL;DR, key moments, hook breakdown, editorial profile, shot prompts, quotable moments, entities, concepts, and transcript. Narrative sections are emitted as `<!-- pending Claude fill: ... -->` markers — you fill them in before offering ingest.
+- **Shot Prompts** — one still-image generation prompt + one motion/camera note per detected shot, for a stills-then-motion creative-direction pipeline (lock stills first, then camera interpolation on the locked stills). On by default; `--no-shot-prompts` skips it for analysis-only runs. No new dependencies or API calls — filled by you at Step 4 from the frames + transcript already in context.
 - **Step 4.5 — Ingest gate** — after answering the user, you ask once: "Want to ingest this into your Obsidian vault?" If yes, and a vault is detected, you read `$VAULT_DIR/CLAUDE.md` (if it exists) and run that vault's Ingest op against the report.
 
 None of the above add new dependencies — pure ffmpeg + stdlib + the existing Whisper backend.
@@ -120,6 +121,7 @@ Optional flags:
 - `--no-whisper` — disable the Whisper fallback entirely (frames-only if no captions)
 - `--no-scene-change` — force uniform frame sampling (debug only; usually leave on)
 - `--no-hook-microscope` — skip the 0-10s dense pass (saves ~1 Whisper call)
+- `--no-shot-prompts` — skip the per-shot generation-prompt section in `report.md`. Use for analysis-only runs where nobody will generate from this video; it removes the largest block of fill markers from Step 4.
 
 ### Focusing on a section (higher frame rate)
 
@@ -164,6 +166,9 @@ Then, **fill in the pending markers in `report.md` using the Edit tool**. Walk e
 - **Key moments** — 5-10 timestamped bullets
 - **Hook microscope interpretation** — frame-by-frame: visual change × what's said; identify the hook pattern (question, contrarian claim, in-medias-res, demo-first, etc.)
 - **Editorial profile fingerprint** — one-line style summary inferred from pacing numbers + hero frames
+- **Shot prompts** (unless `--no-shot-prompts` was passed) — two fields per `### Shot` entry, written from the frame image at that timestamp plus the transcript around it:
+  - `image_prompt` — a still-image generation prompt for that exact frame: subject, composition, camera angle/lens feel, lighting, color grade, material/texture cues. Write it the way a director briefs a stills artist, not a caption. Concrete nouns and light, no plot summary.
+  - `motion_note` — 1-2 lines on camera movement and pacing into/out of that shot (the `~Xs to next cut` figure in the heading is the shot's real length — respect it), for the motion pass once the still is locked.
 - **Quotable moments** — top 3-5 punchy, standalone lines from the transcript
 - **Entities mentioned** — people, companies, tools, places — formatted to match wiki/entities/ slugs (kebab-case, lowercase). Use `[[wikilink]]` style.
 - **Concepts surfaced** — frameworks, mental models, named patterns — short gist each
@@ -238,6 +243,8 @@ Both keys live in `~/.config/watch/.env`. The script prefers Groq when both are 
 - **Download fails** → yt-dlp's error goes to stderr. If it's a login-required or region-locked video, tell the user plainly; do not keep retrying.
 - **Whisper request fails** → the error is printed to stderr (likely: invalid key, rate limit, or 25 MB upload limit on a very long video). The report will say "none available" for transcript. You can retry with `--whisper openai` if Groq failed (or vice versa).
 - **Report has unfilled `<!-- pending Claude fill: ... -->` markers** → you skipped Step 4. Go back, read the report, fill every marker via Edit, then offer ingest. Never ingest a half-filled report — the Second Brain Ingest op will produce sparse/wrong entity pages.
+- **Shot prompts section says frames were uniform-sampled** → the source had no detectable cuts (static/screen-recorded), so per-shot boundaries don't exist and prompts cover hero frames only. That is correct behavior, not an error — tell the user; if they need denser coverage for generation, re-run focused on the range they care about.
+- **Shot prompts section is missing but the user wants generation prompts** → the run used `--no-shot-prompts`. Re-run without the flag (or, if frames + transcript are still in context, append the section by hand following the schema above rather than re-downloading).
 - **Ingest fails partway** → do not roll back. The Second Brain Ingest op is idempotent on re-run (it updates existing pages rather than duplicating). Tell the user what failed, leave the staged artifact in `raw/watched/<slug>/`, and they can re-run by saying "ingest the staged report at `<slug>`".
 
 ## Token efficiency

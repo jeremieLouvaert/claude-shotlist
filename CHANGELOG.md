@@ -2,6 +2,21 @@
 
 All notable changes to `/watch` are documented here.
 
+## [0.3.0] — 2026-08-30
+
+Creative-direction fork: per-shot AI-generation prompts for a stills-then-motion pipeline (stills generator first, camera interpolation on the locked stills). Additive — a run with `--no-shot-prompts` produces a report byte-identical to 0.2.0 (verified by diff against the 0.2.0 emitter on the same payload).
+
+### Added
+- `## Shot prompts` section in `report.md` (between Editorial profile and Quotable moments): one entry per scene-change frame with two `<!-- pending Claude fill -->` fields — `image_prompt` (still-image generation prompt, director-brief register) and `motion_note` (camera movement/pacing into and out of the shot). Headings carry timestamp, frame filename, and measured shot length (`~Xs to next cut`). Filled by Claude at Step 4 from evidence already in context — no new API calls, no new dependencies.
+- Uniform-fallback handling: when scene detection fell back to uniform sampling (static/screen-recorded source), per-shot boundaries don't exist — the section covers hero frames only under an explicit note.
+- `--no-shot-prompts` flag in `scripts/watch.py` for analysis-only runs.
+- `scripts/tests/fixtures/make_fixtures.py` — generates four synthetic sub-30s clips with known cut structure (ffmpeg lavfi sources, nothing downloaded, nothing committed) for fixture-first testing.
+- 5 unit tests for the shot-prompt report schema (fixed frame paths + transcript fixture, no video required): scene-mode entry count, section placement, uniform-mode hero-only coverage, empty-frames note, flag-off omission with upstream section order intact.
+- SKILL.md: Step 4 fill list documents both new fields, flag documented, two failure-mode rows added (uniform-sampled note is correct behavior; missing section = flag was passed).
+
+### Fixed
+- `scripts/frames.py` scene extraction on ffmpeg ≥ 8: `-vsync` was removed upstream in ffmpeg; now passes `-fps_mode vfr` and retries with the legacy `-vsync vfr` on ffmpeg < 5.1. Behavior-preserving; also un-skips the two ffmpeg-dependent unit tests on current ffmpeg installs.
+
 ## [0.2.0] — 2026-05-25
 
 Based on [bradautomates/claude-video](https://github.com/bradautomates/claude-video) v0.1.3 by Bradley Bonanno (MIT). Its pipeline (yt-dlp + ffmpeg + Whisper) is preserved; everything below is additive.

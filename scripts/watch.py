@@ -66,6 +66,11 @@ def main() -> int:
         action="store_true",
         help="Skip the dense 0-10s hook re-pass.",
     )
+    ap.add_argument(
+        "--no-shot-prompts",
+        action="store_true",
+        help="Skip the per-shot generation-prompt section in report.md (analysis-only runs).",
+    )
     args = ap.parse_args()
 
     max_frames = min(args.max_frames, 100)
@@ -226,6 +231,7 @@ def main() -> int:
         hero_frames=hero_frames,
         pacing=pacing,
         hook=hook_result,
+        include_shot_prompts=not args.no_shot_prompts,
     )
 
     print()
