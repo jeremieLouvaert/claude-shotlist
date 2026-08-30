@@ -225,6 +225,24 @@ The "different angle" path is what makes /shotlist truly plug-and-play — the u
 
 **Step 5 — clean up.** The script prints a working directory at the end. If you ingested (Step 4.5 path A), the hero frames + report.md are already copied into the vault — you can `rm -rf` the original workdir. If you staged (path B), same — the workdir copy is no longer needed. If the user picked "no, drop it" (path C) and isn't going to ask follow-ups, delete with `rm -rf <dir>`. If they might ask follow-ups, leave it in place.
 
+## Step 6 — Remix (optional): report → ComfyUI workflows
+
+When the user wants to RECREATE the reference as their own film ("remix this into…", "change the horses to jeeps", "make this a <brand> movie"), a filled report becomes two loadable ComfyUI workflows — a stills graph that generates a first and a last frame per shot, and a video graph that animates each locked first/last pair (Seedance first+last-frame conditioning).
+
+1. **Create the remix sheet.** The brief is the user's transposition in their words (subjects to swap, world, target aspect ratio, what to keep):
+   ```bash
+   python3 "C:/Users/Jeremie/.claude/skills/shotlist/scripts/remix.py" "<workdir>" --brief "<transposition brief>" [--ar 16:9]
+   ```
+   This parses the report's Shot prompts section into `<workdir>/remix.md` with three pending markers per shot (`first_frame_prompt`, `last_frame_prompt`, `video_prompt`) plus one global `style_keeper`. It refuses to run on a report with unfilled markers.
+2. **Fill every marker** (same walk as Step 4), grounded in the shot's frame — which the stills generator will receive as image conditioning. So write first/last frame prompts as **instructions against the reference** ("replace the riders with…", "reframe to 16:9 extending the landscape…", "remove the caption text"), not from-scratch descriptions. `first` is the shot's opening state, `last` is its end state in the same world; `video_prompt` describes only the motion between them. `style_keeper` is one sentence naming the original's grade/light/lens, auto-appended to every stills prompt. Never put a real person's likeness in a transposed prompt — recast as a fictional person.
+3. **Emit the workflows:**
+   ```bash
+   python3 "C:/Users/Jeremie/.claude/skills/shotlist/scripts/remix.py" "<workdir>" --emit
+   ```
+   Writes `comfy/stills_workflow.json`, `comfy/video_workflow.json`, and `comfy/input/shotNN_ref.*` (renamed reference frames). Relay the printed handoff to the user: drop `comfy/input/*` into ComfyUI's input folder → run the stills graph → pick winners per shot, rename to `shotNN_first.png` / `shotNN_last.png`, into ComfyUI input → run the video graph.
+
+The graphs are emitted from `scripts/comfy_templates.json` — node instances captured from a real install (GeminiImage2Node for stills, ByteDance2FirstLastFrameNode/Seedance 2.0 for video). If the user's ComfyUI lacks those node packs, the file loads with missing-node placeholders — tell them which packs the graph expects rather than editing the JSON by hand.
+
 ## Transcription
 
 The script gets a timestamped transcript in one of two ways:
@@ -246,6 +264,9 @@ Both keys live in `~/.config/watch/.env`. The script prefers Groq when both are 
 - **Report has unfilled `<!-- pending Claude fill: ... -->` markers** → you skipped Step 4. Go back, read the report, fill every marker via Edit, then offer ingest. Never ingest a half-filled report — the vault Ingest op will produce sparse/wrong entity pages.
 - **Shot prompts section says frames were uniform-sampled** → the source had no detectable cuts (static/screen-recorded), so per-shot boundaries don't exist and prompts cover hero frames only. That is correct behavior, not an error — tell the user; if they need denser coverage for generation, re-run focused on the range they care about.
 - **Shot prompts section is missing but the user wants generation prompts** → the run used `--no-shot-prompts`. Re-run without the flag (or, if frames + transcript are still in context, append the section by hand following the schema above rather than re-downloading).
+- **`remix.py --brief` refuses: report has pending markers** → finish the Step 4 fill first; the remix sheet inherits `image_prompt`/`motion_note` per shot and fiction in, fiction out.
+- **`remix.py --emit` refuses: remix.md has pending markers or empty fields** → the fill was skipped or partial. Fill every `first_frame_prompt` / `last_frame_prompt` / `video_prompt` and `style_keeper`, then re-run `--emit`.
+- **Generated workflow loads with red missing-node placeholders in ComfyUI** → the install lacks the node packs the graph targets (GeminiImage2Node, ByteDance2FirstLastFrameNode, StringConstantMultiline). Name the missing packs to the user; do not hand-edit the JSON to substitute different nodes.
 - **Ingest fails partway** → do not roll back. The vault Ingest op is idempotent on re-run (it updates existing pages rather than duplicating). Tell the user what failed, leave the staged artifact in `raw/watched/<slug>/`, and they can re-run by saying "ingest the staged report at `<slug>`".
 
 ## Token efficiency

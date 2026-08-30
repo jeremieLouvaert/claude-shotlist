@@ -2,6 +2,18 @@
 
 All notable changes are documented here. (Through 0.3.0 this project was `/watch`.)
 
+## [0.5.0] — 2026-08-30
+
+Remix: a filled report becomes two loadable ComfyUI workflows — first + last frame stills per shot, then Seedance first/last-frame video per shot. The transposition ("horses become Land Rovers, keep the grade, 16:9") is Claude's fill; the node graphs are deterministic emitter output.
+
+### Added
+- `scripts/remix.py` — phase 1 (`--brief`) parses the report's Shot prompts into `remix.md` with `first_frame_prompt` / `last_frame_prompt` / `video_prompt` markers per shot plus a global `style_keeper`; phase 2 (`--emit`) builds `comfy/stills_workflow.json` (reference frame → GeminiImage2Node ×2 → SaveImage per shot, reference-conditioned restyle), `comfy/video_workflow.json` (first/last stills → ByteDance2FirstLastFrameNode / Seedance 2.0 → SaveVideo per shot), and `comfy/input/` with renamed reference frames. Both phases refuse to run over unfilled markers.
+- `scripts/comfy_templates.json` — the seven node templates, captured verbatim from a real ComfyUI install's output-PNG metadata (widgets_values ordering is undocumented surface; captured templates load, transcribed ones drift), scrubbed of creative content.
+- SKILL.md Step 6 (Remix) + four failure-mode rows; 6 new tests (remix.md schema, refusal paths, graph integrity: unique ids, link endpoint/slot correctness, per-shot node counts, style_keeper propagation). Suite: 18.
+
+### Unchanged
+- Every pre-existing script is byte-identical to 0.4.0; remix is additive.
+
 ## [0.4.0] — 2026-08-30
 
 Identity: the fork ships as **`/shotlist`** (repo: claude-shotlist), a creative-direction tool, no longer claiming the upstream `/watch` name. Runtime pipeline (`scripts/*.py`) is untouched — byte-identical to 0.3.0.

@@ -1,0 +1,363 @@
+{
+ "LoadImage": {
+  "id": 1182,
+  "type": "LoadImage",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   282.798828125,
+   314
+  ],
+  "flags": {},
+  "order": 3,
+  "mode": 0,
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "IMAGE",
+    "type": "IMAGE",
+    "links": [
+     1508,
+     1509
+    ]
+   },
+   {
+    "name": "MASK",
+    "type": "MASK",
+    "links": null
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.23.0",
+   "Node name for S&R": "LoadImage"
+  },
+  "widgets_values": [
+   "example.png",
+   "image"
+  ],
+  "widgets_values_named": {
+   "image": "NBP_Office_FirstFrame.png",
+   "upload": "image"
+  }
+ },
+ "PrimitiveStringMultiline": {
+  "id": 1156,
+  "type": "PrimitiveStringMultiline",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   537.078291566171,
+   670.9084604713078
+  ],
+  "flags": {},
+  "order": 9,
+  "mode": 0,
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "STRING",
+    "type": "STRING",
+    "links": []
+   }
+  ],
+  "title": "pos prompt",
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.10.0",
+   "Node name for S&R": "PrimitiveStringMultiline"
+  },
+  "widgets_values": [
+   ""
+  ],
+  "widgets_values_named": {
+   "value": "Black and white documentary photograph, 1963, a records office, seen from high above and behind. A man sits cross-legged on the floor with his back fully to the camera, head bowed, no face visible, small and low, screen left in the frame: white shirt with sleeves rolled, dark trousers. He holds a single slim new folder up in both hands in front of him, clean and pale and crisp against all the worn paper around him, reading it. Stacked in a dense bank filling the whole upper part of the picture behind him are dozens of plain fibreboard document boxes, lids off and set aside, piled two and three high, each with a handwritten label. Covering the floor all around him in the lower part of the picture are thick uneven stacks of paper, string-tied bundles and manila folders pulled out of those boxes, some slumped and leaning, some fanned open, none of them squared up or aligned, the typing on them far too small to read. In the near foreground one box stands open and tipped toward the camera and it is completely empty. The boxes crowd more heavily on the left than the right. A window off to the side throws flat even daylight across the floor. Even overall illumination, open shadows, full detail in the shade, nothing falling to black. Wide lens, high overhead angle looking down over his shoulder, deep focus, everything sharp front to back, no blur anywhere. Working, not posed. Clean neutral monochrome, full tonal range, no film grain, no dust, no border, no logos, no captions, no printed branding on the boxes, no sticky notes, no plastic."
+  },
+  "color": "#232",
+  "bgcolor": "#353"
+ },
+ "StringConstantMultiline": {
+  "id": 1183,
+  "type": "StringConstantMultiline",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   521.8574415541834,
+   448.1550692089554
+  ],
+  "flags": {},
+  "order": 4,
+  "mode": 0,
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "STRING",
+    "type": "STRING",
+    "links": [
+     1510
+    ]
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfyui-kjnodes",
+   "ver": "9b565354e32a7061296ac598d9c7f445e10d31ed",
+   "Node name for S&R": "StringConstantMultiline"
+  },
+  "widgets_values": [
+   ""
+  ],
+  "widgets_values_named": {
+   "string": "Fixed static camera, no camera movement, locked-off shot. Black-and-white 1950s\nfilm, fine silver-gelatin grain, soft venetian-blind light from the left, deep\ncharcoal shadows, full tonal range. A silver-haired man in a black suit sits behind\nthe desk looking straight into the lens, his face perfectly still and composed while\nhis fingers move fast and steady across the typewriter keys, striking key after key,\nactively typing a full page with practiced speed. After a few seconds of this\nrelentless typing, his left-side hand lifts to the chrome carriage-return lever at\nthe left end of the carriage and sweeps it sideways in one short firm motion; the\ncarriage snaps back across the typewriter. The white sheet in the platen is carried\nloose and drops forward onto the desk, falling with real weight and gravity like an\nactual sheet of paper, tipping and fluttering as it slices down through the air,\nnever floating, never rising. His hands immediately return to the keys and keep\ntyping. Calm face, busy hands, restrained and elegant, real motion.",
+   "strip_newlines": true
+  }
+ },
+ "GeminiImage2Node": {
+  "id": 1240,
+  "type": "GeminiImage2Node",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   400,
+   348
+  ],
+  "flags": {},
+  "order": 48,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "images",
+    "shape": 7,
+    "type": "IMAGE",
+    "link": 1606
+   },
+   {
+    "name": "files",
+    "shape": 7,
+    "type": "GEMINI_INPUT_FILES",
+    "link": null
+   },
+   {
+    "name": "prompt",
+    "type": "STRING",
+    "widget": {
+     "name": "prompt"
+    },
+    "link": 1598
+   }
+  ],
+  "outputs": [
+   {
+    "name": "IMAGE",
+    "type": "IMAGE",
+    "links": [
+     1590
+    ]
+   },
+   {
+    "name": "STRING",
+    "type": "STRING",
+    "links": null
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.19.5",
+   "Node name for S&R": "GeminiImage2Node"
+  },
+  "widgets_values": [
+   "",
+   "Nano Banana 2 (Gemini 3.1 Flash Image)",
+   7,
+   "randomize",
+   "16:9",
+   "2K",
+   "IMAGE+TEXT",
+   "You are an expert image-generation engine. You must ALWAYS produce an image.\nInterpret all user input\u2014regardless of format, intent, or abstraction\u2014as literal visual directives for image composition.\nIf a prompt is conversational or lacks specific visual details, you must creatively invent a concrete visual scenario that depicts the concept.\nPrioritize generating the visual representation above any text, formatting, or conversational requests."
+  ],
+  "widgets_values_named": {
+   "prompt": "",
+   "model": "Nano Banana 2 (Gemini 3.1 Flash Image)",
+   "seed": 7,
+   "control_after_generate": "randomize",
+   "aspect_ratio": "16:9",
+   "resolution": "2K",
+   "response_modalities": "IMAGE+TEXT",
+   "system_prompt": "You are an expert image-generation engine. You must ALWAYS produce an image.\nInterpret all user input\u2014regardless of format, intent, or abstraction\u2014as literal visual directives for image composition.\nIf a prompt is conversational or lacks specific visual details, you must creatively invent a concrete visual scenario that depicts the concept.\nPrioritize generating the visual representation above any text, formatting, or conversational requests."
+  },
+  "color": "#432",
+  "bgcolor": "#653"
+ },
+ "ByteDance2FirstLastFrameNode": {
+  "id": 1181,
+  "type": "ByteDance2FirstLastFrameNode",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   440.4458984375,
+   348
+  ],
+  "flags": {},
+  "order": 23,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "first_frame",
+    "shape": 7,
+    "type": "IMAGE",
+    "link": 1508
+   },
+   {
+    "name": "last_frame",
+    "shape": 7,
+    "type": "IMAGE",
+    "link": 1509
+   },
+   {
+    "name": "model.prompt",
+    "type": "STRING",
+    "widget": {
+     "name": "model.prompt"
+    },
+    "link": 1510
+   }
+  ],
+  "outputs": [
+   {
+    "name": "VIDEO",
+    "type": "VIDEO",
+    "links": [
+     1511
+    ]
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.23.0",
+   "Node name for S&R": "ByteDance2FirstLastFrameNode"
+  },
+  "widgets_values": [
+   "Seedance 2.0",
+   "",
+   "1080p",
+   "adaptive",
+   8,
+   false,
+   1,
+   "randomize",
+   false,
+   "",
+   ""
+  ],
+  "widgets_values_named": {
+   "model": "Seedance 2.0",
+   "model.prompt": "",
+   "model.resolution": "1080p",
+   "model.ratio": "adaptive",
+   "model.duration": 8,
+   "model.generate_audio": false,
+   "seed": 1,
+   "control_after_generate": "randomize",
+   "watermark": false,
+   "first_frame_asset_id": "",
+   "last_frame_asset_id": ""
+  },
+  "color": "#432",
+  "bgcolor": "#653"
+ },
+ "SaveImage": {
+  "id": 1284,
+  "type": "SaveImage",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   270,
+   270
+  ],
+  "flags": {},
+  "order": 62,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "images",
+    "type": "IMAGE",
+    "link": 1687
+   }
+  ],
+  "outputs": [
+   {
+    "name": "images",
+    "type": "IMAGE",
+    "links": null
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.31.1",
+   "Node name for S&R": "SaveImage"
+  },
+  "widgets_values": [
+   "ComfyUI"
+  ],
+  "widgets_values_named": {
+   "filename_prefix": "ComfyUI"
+  }
+ },
+ "SaveVideo": {
+  "id": 1184,
+  "type": "SaveVideo",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   654.2141314049104,
+   106
+  ],
+  "flags": {},
+  "order": 51,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "video",
+    "type": "VIDEO",
+    "link": 1511
+   }
+  ],
+  "outputs": [
+   {
+    "name": "video",
+    "type": "VIDEO",
+    "links": null
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.23.0",
+   "Node name for S&R": "SaveVideo"
+  },
+  "widgets_values": [
+   "video/ComfyUI",
+   "auto",
+   "auto",
+   "auto"
+  ],
+  "widgets_values_named": {
+   "filename_prefix": "video/ComfyUI",
+   "format": "auto",
+   "format.codec": "auto",
+   "codec": "auto"
+  }
+ }
+}

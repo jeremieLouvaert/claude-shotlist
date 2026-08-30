@@ -1,6 +1,6 @@
 {
   "name": "shotlist",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Turn a reference video into a per-shot generation brief: one still-image prompt + one motion/camera note per detected cut, for a stills-then-motion pipeline — plus scene-change frames, pacing metrics, a 0-10s hook microscope, captions-or-Whisper transcript, a structured report.md, and optional Obsidian auto-save.",
   "author": {
     "name": "jeremie"

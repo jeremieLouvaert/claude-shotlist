@@ -148,3 +148,62 @@ Until a pre-resolver exists, the operator hop is: fetch the cosmos page,
 read the original-post URL from its metadata, run /shotlist on that.
 Candidate for 0.5.0: a docs line in SKILL.md's failure-modes table, or a
 small resolver in download.py for known moodboard hosts.
+
+
+## 2026-08-30 — Remix stage (0.5.0): report → ComfyUI first/last-frame workflows
+
+**The feature.** A filled `report.md` plus a transposition brief ("horses →
+Land Rover, CanvasCamp × Patagonia people, 16:9, keep the grade") becomes
+two loadable ComfyUI workflows: a stills graph that generates a first and
+last frame per shot, and a video graph that animates each first/last pair.
+The creative transposition is Claude's fill; the graphs are deterministic
+emitter output. Nobody hand-wires 25 shots of nodes.
+
+**Two-artifact flow, same marker mechanism as report.md.**
+`scripts/remix.py <workdir> --brief "…"` parses the report's Shot prompts
+section and writes `remix.md` with three pending markers per shot
+(`first_frame_prompt`, `last_frame_prompt`, `video_prompt`) plus one global
+`style_keeper` marker, reusing the exact `<!-- pending Claude fill: … -->`
+convention so SKILL.md's marker walk and failure modes apply unchanged.
+After the fill, `scripts/remix.py <workdir> --emit` parses remix.md and
+writes `comfy/stills_workflow.json`, `comfy/video_workflow.json`, and
+`comfy/input/shotNN_ref.jpg` (reference frames copied and renamed for
+ComfyUI's input folder).
+
+**Node stack is measured, not invented.** The graphs target the nodes in
+Jérémie's actual install, read from the litegraph JSON embedded in his own
+ComfyUI output PNGs (Downloads + Desktop, 2026-08-30): `GeminiImage2Node`
+(Nano Banana 2 / Gemini 3.1 Flash Image, 2K, aspect-ratio widget,
+reference-image conditioning) for stills; `ByteDance2FirstLastFrameNode`
+(Seedance 2.0, 1080p, first_frame/last_frame image links, prompt link) →
+`SaveVideo` for video; `PrimitiveStringMultiline` / `StringConstantMultiline`
+for prompts; `LoadImage`/`SaveImage`. Templates for all seven node types are
+committed verbatim in `scripts/comfy_templates.json` — real instances with
+their `widgets_values` ordering intact (the part a hand-written graph gets
+wrong), scrubbed of creative prompt text and filenames. Emitting from
+captured templates instead of authored node specs is the load-bearing call:
+widget order is undocumented API-surface and drifts per node-pack version;
+capture beats transcription.
+
+**Restyle-from-reference (Jérémie's call, this session).** Each shot's
+original frame enters the Gemini node as image conditioning with the
+transposed prompt as instruction — composition, light and grade carry over
+structurally instead of being re-described. This matches how the existing
+stills workflow already uses the node ("Modify lighting to …" over
+reference images).
+
+**What the emitter does NOT decide.** Seedance duration stays at the
+template default (8s) rather than being derived from the report's
+`~Xs to next cut` figures — the allowed duration values are not evidenced,
+and remix shots are re-timed by intent anyway; the real shot length is
+carried into `remix.md` for hand-tuning. The video graph's `LoadImage`
+widgets point at `shotNN_first.png` / `shotNN_last.png` placeholder names:
+picking WHICH generated still wins is a human step, so the contract is
+"rename your picks to these names and drop them in ComfyUI's input folder"
+rather than pretending the pipeline is pickless.
+
+**Runtime contract.** `remix.py` + `comfy_templates.json` are additive
+files; every pre-existing script stays byte-identical to 0.4.0. Tests
+assert remix.md schema and workflow-graph integrity (unique ids, every
+link's endpoints exist with correct slot indices, per-shot node counts) —
+not pixel output, which only a live ComfyUI can prove.
