@@ -197,9 +197,29 @@ class TestRemix(unittest.TestCase):
         self.assertEqual(saves, ["remix/shot01_first_nano", "remix/shot01_last_nano",
                                  "remix/shot02_first_nano", "remix/shot02_last_nano"])
         prompts = [n["widgets_values"][0] for n in w["nodes"]
-                   if n["type"] == "PrimitiveStringMultiline"]
+                   if n["type"] == "PrimitiveStringMultiline"
+                   and not n["widgets_values"][0].startswith("engine:")]
         self.assertTrue(all("Style: " in p for p in prompts),
                         "style_keeper must be appended to every stills prompt")
+
+    def test_vault_cache_keys_unique_per_engine(self):
+        w = self._emit()
+        byid = {n["id"]: n for n in w["nodes"]}
+        linkmap = {l[0]: l for l in w["links"]}
+        keys = []
+        for n in w["nodes"]:
+            if n["type"] != "DeterministicHashVault":
+                continue
+            srcs = frozenset(linkmap[i["link"]][1] for i in n["inputs"]
+                             if i.get("link") is not None)
+            keys.append(srcs)
+            # every vault must include an engine tag in its key
+            tag_types = [byid[x]["widgets_values"][0] for x in srcs
+                         if byid[x]["type"] == "PrimitiveStringMultiline"
+                         and str(byid[x]["widgets_values"][0]).startswith("engine:")]
+            self.assertEqual(len(tag_types), 1, "each vault needs exactly one engine tag")
+        self.assertEqual(len(keys), len(set(keys)),
+                         "two vaults share identical key inputs -> cache collision")
 
     def test_video_wiring_and_engine_muting(self):
         w = self._emit(video_engine="omni")  # omni active, seedance muted

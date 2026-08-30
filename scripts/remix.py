@@ -330,6 +330,16 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
     gw, gh = GPT_SIZES.get(aspect, GPT_SIZES["16:9"])
     n_rows = len(shots)
 
+    # Cache-key salts: both engines of a stage share prompt + conditioning, so
+    # without a per-engine tag their DeterministicHashVault keys collide and
+    # the second engine is served the first engine's cached output. One tag
+    # node per engine, hashed into every triad of that engine's branches.
+    tags = {}
+    for i, name in enumerate(("engine:nano", "engine:gpt",
+                              "engine:seedance", "engine:omni")):
+        tags[name.split(":")[1]] = g.add(
+            "PrimitiveStringMultiline", [i * 620, -900], {STRING_W_TEXT: name})
+
     for row, s in enumerate(shots):
         y = 120 + row * ROW_H
         nn = f"shot{s['n']:02d}"
@@ -359,7 +369,8 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
                          mode=nano_mode)
             g.link(cond, cond_out, nano, "images")
             g.link(p, "STRING", nano, "prompt")
-            nano_out = _vaulted(g, nano, "IMAGE", p, [(cond, cond_out)],
+            nano_out = _vaulted(g, nano, "IMAGE", p,
+                                [(cond, cond_out), (tags["nano"], "STRING")],
                                 SCOL[3], hy, nano_mode)
             nano_send = g.add("WirelessSend", [SCOL[4], hy],
                               {0: f"{nn}_{key}"}, mode=nano_mode)
@@ -374,7 +385,8 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
                         mode=gpt_mode)
             g.link(cond, cond_out, gpt, "model.images.image_1")
             g.link(p, "STRING", gpt, "prompt")
-            gpt_out = _vaulted(g, gpt, "IMAGE", p, [(cond, cond_out)],
+            gpt_out = _vaulted(g, gpt, "IMAGE", p,
+                               [(cond, cond_out), (tags["gpt"], "STRING")],
                                SCOL[3], hy + ENG_DY, gpt_mode)
             gpt_send = g.add("WirelessSend", [SCOL[4], hy + ENG_DY],
                              {0: f"{nn}_{key}"}, mode=gpt_mode)
@@ -413,7 +425,8 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         g.link(first, "value", sd, "first_frame")
         g.link(last, "value", sd, "last_frame")
         g.link(vp, "STRING", sd, "model.prompt")
-        sd_out = _vaulted(g, sd, "VIDEO", vp, [(first, "value"), (last, "value")],
+        sd_out = _vaulted(g, sd, "VIDEO", vp,
+                          [(first, "value"), (last, "value"), (tags["seedance"], "STRING")],
                           VCOL[3], y, sd_mode)
         sd_save = g.add("SaveVideo", [VCOL[4], y],
                         {SAVEVIDEO_W_PREFIX: f"remix/{nn}_seedance"}, mode=sd_mode)
@@ -424,7 +437,8 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         g.link(first, "value", omni, "model.images.image_1")
         g.link(last, "value", omni, "model.images.image_2")
         g.link(vp, "STRING", omni, "model.prompt")
-        omni_out = _vaulted(g, omni, "VIDEO", vp, [(first, "value"), (last, "value")],
+        omni_out = _vaulted(g, omni, "VIDEO", vp,
+                            [(first, "value"), (last, "value"), (tags["omni"], "STRING")],
                             VCOL[3], y + ENG_DY, omni_mode)
         omni_save = g.add("SaveVideo", [VCOL[4], y + ENG_DY],
                           {SAVEVIDEO_W_PREFIX: f"remix/{nn}_omni"}, mode=omni_mode)

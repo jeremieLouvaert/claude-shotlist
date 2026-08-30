@@ -8,9 +8,10 @@ Close the loop: generated clips become a film, drift gets caught before the vide
 
 ### Added
 - `scripts/assemble.py` — cuts the generated clips to the reference's rhythm: per-shot match by `shotNN` token (newest wins), head-trim to the shot's reference duration (the head is the locked first frame; the tail is where video models drift), normalize to the first clip's format, hard-cut concat, optional `--audio` bed. Emits `assembly/final.mp4`, a CMX3600 `final.edl` (imports into Resolve/Premiere), and the trimmed `parts/`. Missing clips warn and skip — a partial run still yields a watchable cut. Beat-matching and sound design stay explicitly human.
+- Engine-salted vault keys: both engines of a stage share prompt + conditioning, so their `DeterministicHashVault` keys collided and the second engine was served the first's cached output (found by Jérémie in live use — Omni receiving Seedance's video). A per-engine tag node now hashes into every triad; keys are unique per engine, asserted in tests.
 - `remix.py --fidelity <gen dir>` — lists reference-vs-generated still pairs per shot half so Claude reads them side by side and verdicts drift (subject identity, accent color, grade, first↔last consistency) before the video pass; only flagged branches re-queue.
 - Brief presets — a remix ask can name a preset; SKILL.md resolves it from `$SHOTLIST_VAULT_DIR/remix-presets.md` (one `##` heading per preset, body is the brief verbatim).
-- SKILL.md Step 7 (Assemble) + fidelity and preset instructions in Step 6; 4 new tests (clip matching, trim/concat/EDL correctness, partial-cut behavior, unfilled-remix refusal; ffmpeg-dependent, skip cleanly without it). Suite: 26.
+- SKILL.md Step 7 (Assemble) + fidelity and preset instructions in Step 6; 4 new tests (clip matching, trim/concat/EDL correctness, partial-cut behavior, unfilled-remix refusal; ffmpeg-dependent, skip cleanly without it) + vault-key uniqueness. Suite: 27.
 
 ## [0.5.0] — 2026-08-30
 

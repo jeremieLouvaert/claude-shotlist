@@ -303,3 +303,19 @@ language is the user's material; the skill only defines the resolution
 rule (`$SHOTLIST_VAULT_DIR/remix-presets.md`, one `##` per preset).
 Jérémie's `canvascamp` preset is seeded there, marked Draft-for-review and
 explicitly pre-OQ-015.
+
+
+## 2026-08-30 — Cache collision between engines (Jérémie's find, live use)
+
+Both engines of a stage consume the same prompt and conditioning inputs,
+so their DeterministicHashVault keys were byte-identical — the second
+engine to run was served the first's cached output (observed: Omni
+returning Seedance's video). The stills pair had the same latent
+collision, masked only by the one-engine-unmuted convention: switching
+nano → gpt would have replayed nano's cached image as gpt output.
+
+Fix: one tag node per engine ("engine:nano" … "engine:omni"), hashed
+into every triad of that engine's branches via a free any_input slot.
+Cache keys are now unique per engine; a graph-wide uniqueness assertion
+(no two vaults share an identical input-source set) is in the tests, so
+any future branch that forgets its salt fails CI, not a live run.
