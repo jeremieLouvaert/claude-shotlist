@@ -275,3 +275,31 @@ conditioning loop in `_vaulted` shadowed the `out_name` parameter, so the
 gen→HashVaultSave link asked GeminiImage2Node for a "value" output. The
 graph-integrity tests caught it before any workflow shipped; loop
 variable renamed.
+
+
+## 2026-08-30 — 0.6.0: assemble, fidelity, presets — and where each one lives
+
+**Assembly is ffmpeg + EDL, not a creative tool.** The edit already exists
+as data — shot order and per-shot durations in remix.md — so `assemble.py`
+is deterministic: head-trim each clip to its reference duration (head =
+the locked first frame; the tail is where video models drift), normalize
+to the first clip's format, hard-cut concat. A CMX3600 EDL ships alongside
+so hand-finishing starts from an assembled Resolve timeline, not a bin of
+clips. OTIO was considered and dropped: writing its JSON schema by hand is
+fragile, CMX3600 is 20 lines of text and imports everywhere. Remotion is
+deliberately NOT this layer — it is the future tokens-driven type/graphics
+pass, blocked on OQ-015 like everything typographic.
+
+**Fidelity is Claude-side, the script only pairs.** `--fidelity` emits
+ref/generated path pairs; the judgment (subject identity, single accent
+color, grade, first↔last consistency) is a reading task, not a metric —
+a number here would be the kind of green-without-looking result the
+CanvasCamp evidence discipline exists to prevent. Validated on the real
+shot-1 output: the wireless-chained last frame held the same two vehicles,
+loads and light as the first — the consistency fix observed working.
+
+**Presets live in the user's vault, not the repo.** Brand transposition
+language is the user's material; the skill only defines the resolution
+rule (`$SHOTLIST_VAULT_DIR/remix-presets.md`, one `##` per preset).
+Jérémie's `canvascamp` preset is seeded there, marked Draft-for-review and
+explicitly pre-OQ-015.

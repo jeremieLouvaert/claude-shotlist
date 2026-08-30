@@ -278,3 +278,20 @@ v0.5.0` (tag push triggers the release build). Installed clone at
 **Open.** Letterbox cropdetect + cosmos.so resolver (0.5.x candidates);
 prompt-fidelity check now cheap to run — the stills exist, compare
 against reference frames when Jérémie wants it.
+
+
+## 2026-08-30 — 0.6.0: assemble + fidelity + presets, tested on the real run
+
+**Done.** `assemble.py` (head-trim to reference rhythm, concat, CMX3600
+EDL, parts/ for hand editing) — smoke-tested on the real shot01 Seedance
+clip (5.06s one-shot cut + EDL emitted). `remix.py --fidelity` pair
+listing — run on the real outputs; shot 1 verdict PASS: the
+wireless-chained last frame kept vehicles, loads and light consistent
+with the first (the consistency fix observed working on production
+output). `canvascamp` preset seeded at `CanvasCamp-Brain/remix-presets.md`
+(Draft, pre-OQ-015); SKILL.md preset resolution + Step 7. Env vars
+`SHOTLIST_VAULT_DIR` and `SHOTLIST_COMFY_INPUT` set user-level. 26/26
+tests. Manifests 0.6.0; v0.6.0 tagged.
+
+**Pending.** Jérémie: `git push origin main` + `git push origin v0.6.0`.
+Remotion tokens-driven graphics pass parked until OQ-015.

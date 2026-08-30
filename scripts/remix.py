@@ -492,6 +492,41 @@ def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedan
     print("  outputs land in ComfyUI output/remix/ with engine-suffixed prefixes")
 
 
+def fidelity(workdir: Path, gen_dir: Path) -> None:
+    """List reference-vs-generated still pairs for the fidelity check.
+
+    Prints one pair per shot half (ref frame vs newest generated first/last
+    still) so Claude can Read both images side by side and flag drift —
+    subject count, accent colors, grade, composition — before the video
+    pass is queued."""
+    remix_path = workdir / "remix.md"
+    if not remix_path.exists():
+        _err(f"no remix.md in {workdir} — run with --brief first")
+    _meta, shots = parse_remix(remix_path.read_text(encoding="utf-8"))
+    if not gen_dir.is_dir():
+        _err(f"not a directory: {gen_dir}")
+    exts = {".png", ".jpg", ".jpeg", ".webp"}
+    pairs = 0
+    print("[remix] fidelity pairs — Read each pair side by side; judge subject")
+    print("[remix] count, accent color, grade and composition against the prompt:")
+    for s in shots:
+        nn = f"shot{s['n']:02d}"
+        ref = next(iter((workdir / "comfy" / "input").glob(f"{nn}_ref.*")), None)
+        for key in ("first", "last"):
+            cands = [p for p in gen_dir.rglob(f"{nn}_{key}*")
+                     if p.suffix.lower() in exts]
+            gen = max(cands, key=lambda p: p.stat().st_mtime) if cands else None
+            if ref and gen:
+                print(f"  shot {s['n']:02d} {key}:")
+                print(f"    ref: {ref}")
+                print(f"    gen: {gen}")
+                pairs += 1
+            else:
+                print(f"  shot {s['n']:02d} {key}: MISSING "
+                      f"({'no generated still' if ref else 'no reference frame'})")
+    print(f"[remix] {pairs} pairs listed")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="remix",
                                  description="report.md -> ComfyUI first/last-frame workflows")
@@ -508,11 +543,15 @@ def main() -> None:
                     help='Seedance model widget value (default "Seedance 2.5")')
     ap.add_argument("--comfy-input", default=None,
                     help="ComfyUI input directory; reference frames are copied there so LoadImage resolves without manual uploads (also honors $SHOTLIST_COMFY_INPUT)")
+    ap.add_argument("--fidelity", default=None, metavar="GEN_DIR",
+                    help="list reference-vs-generated still pairs from GEN_DIR (ComfyUI's output/remix) for the drift check")
     args = ap.parse_args()
     workdir = Path(args.workdir)
     if not workdir.is_dir():
         _err(f"not a directory: {workdir}")
-    if args.emit:
+    if args.fidelity:
+        fidelity(workdir, Path(args.fidelity))
+    elif args.emit:
         emit(workdir, args.stills_engine, args.video_engine, args.seedance_model,
              args.comfy_input)
     elif args.brief:

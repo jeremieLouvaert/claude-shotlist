@@ -2,6 +2,16 @@
 
 All notable changes are documented here. (Through 0.3.0 this project was `/watch`.)
 
+## [0.6.0] — 2026-08-30
+
+Close the loop: generated clips become a film, drift gets caught before the video pass, and recurring transposition briefs get names.
+
+### Added
+- `scripts/assemble.py` — cuts the generated clips to the reference's rhythm: per-shot match by `shotNN` token (newest wins), head-trim to the shot's reference duration (the head is the locked first frame; the tail is where video models drift), normalize to the first clip's format, hard-cut concat, optional `--audio` bed. Emits `assembly/final.mp4`, a CMX3600 `final.edl` (imports into Resolve/Premiere), and the trimmed `parts/`. Missing clips warn and skip — a partial run still yields a watchable cut. Beat-matching and sound design stay explicitly human.
+- `remix.py --fidelity <gen dir>` — lists reference-vs-generated still pairs per shot half so Claude reads them side by side and verdicts drift (subject identity, accent color, grade, first↔last consistency) before the video pass; only flagged branches re-queue.
+- Brief presets — a remix ask can name a preset; SKILL.md resolves it from `$SHOTLIST_VAULT_DIR/remix-presets.md` (one `##` heading per preset, body is the brief verbatim).
+- SKILL.md Step 7 (Assemble) + fidelity and preset instructions in Step 6; 4 new tests (clip matching, trim/concat/EDL correctness, partial-cut behavior, unfilled-remix refusal; ffmpeg-dependent, skip cleanly without it). Suite: 26.
+
 ## [0.5.0] — 2026-08-30
 
 Remix: a filled report becomes one loadable ComfyUI workflow that recreates the reference as your own film — per shot a first frame (from the reference), a last frame (chained from the generated first for subject consistency), and a first→last video pass, in a single queue run. The transposition ("horses become Land Rovers, keep the grade, 16:9") is Claude's fill; the node graph is deterministic emitter output. Validated end-to-end on a live ComfyUI install (0.34.2).

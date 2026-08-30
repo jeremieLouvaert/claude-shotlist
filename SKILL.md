@@ -241,7 +241,25 @@ When the user wants to RECREATE the reference as their own film ("remix this int
    ```
    Writes ONE combined `comfy/remix_workflow.json` plus `comfy/input/shotNN_ref.*` (renamed reference frames — the only files the graph reads from disk). The graph has two labelled sections: **A — STILLS** (per shot: FIRST frame generates from the reference; LAST frame generates conditioned on the first frame, received over a wireless channel) and **B — VIDEO** (first/last arrive via `WirelessGet` → Seedance `ByteDance2FirstLastFrameNode` AND `GeminiVideoOmni` with first→image_1 / last→image_2). The chain is fully procedural: each generation branch's `LazyAPISwitch.final_output` feeds a `WirelessSend` on channel `shotNN_first` / `shotNN_last`, downstream consumers use `WirelessGet` on the same channel — one queue run produces firsts → lasts → videos with no file round-trip or renaming. Every generation node is wrapped in the hash-vault caching triad (`DeterministicHashVault` → `HashVaultSave` → `LazyAPISwitch`, keyed on prompt + conditioning inputs), so redoing one branch (tweak its prompt or seed, re-queue) reuses every unchanged branch from cache. Both engines per stage are emitted with the non-chosen one **muted** (`GeminiImage2Node` Nano Banana Pro vs `gpt-image-2`; Seedance vs Omni) — switching is a UI mute-toggle. Both engines share a channel, so exactly ONE stills engine may be unmuted per run — unmuting both makes the channel value nondeterministic. Stills also save to disk via the send's passthrough (`output/remix/`, engine-suffixed) for review.
 
-The graph is emitted from `scripts/comfy_templates.json` — node instances captured from a real install. If the user's ComfyUI lacks those node packs, the file loads with missing-node placeholders — tell them which packs the graph expects rather than editing the JSON by hand. Note: only `"Seedance 2.0"` is evidenced as a dropdown value in the captures; the default emits `"Seedance 2.5"` per user preference — if the widget rejects it, they pick the model manually once.
+The graph is emitted from `scripts/comfy_templates.json` — node instances captured from a real install. If the user's ComfyUI lacks those node packs, the file loads with missing-node placeholders — tell them which packs the graph expects rather than editing the JSON by hand. When the user's ComfyUI server is reachable (usually `http://127.0.0.1:8188`), `GET /object_info/<ClassName>` is the schema authority for widget layouts — prefer it over the captured templates whenever a node errors on a widget value.
+
+**Brief presets.** If the user names a preset in a remix ask ("use the canvascamp preset"), read `$SHOTLIST_VAULT_DIR/remix-presets.md` — one `## <name>` heading per preset, body is the brief verbatim — and expand it as the `--brief`. If the file or preset doesn't exist, say so and ask for the brief in words; offer to save it as a new preset for next time.
+
+**Fidelity check (before the video pass).** After the stills generate, run:
+   ```bash
+   python3 "C:/Users/Jeremie/.claude/skills/shotlist/scripts/remix.py" "<workdir>" --fidelity "<ComfyUI output/remix dir>"
+   ```
+   It lists reference-vs-generated pairs per shot half. `Read` each pair side by side and judge against the shot's prompt: subject count and identity, the single accent color, grade and light direction, composition, and first↔last consistency (same vehicles/people/wardrobe in both). Report drift per shot with a pass/redo verdict and the prompt tweak that would fix it; the user re-queues only the flagged branches (the hash vault serves the rest from cache).
+
+## Step 7 — Assemble (after the video pass): clips → film + EDL
+
+When the generated clips exist (ComfyUI's `output/remix/`, or a folder of downloads), cut them into a film with the reference's rhythm:
+
+```bash
+python3 "C:/Users/Jeremie/.claude/skills/shotlist/scripts/assemble.py" "<workdir>" --clips "<clips dir>" [--audio <music bed>]
+```
+
+Clips are matched per shot by the `shotNN` token (newest file wins), trimmed FROM THE HEAD to the shot's reference duration (the head is the locked first frame; the tail is where video models drift), normalized to the first clip's resolution/fps, and hard-cut in shot order. Outputs land in `<workdir>/assembly/`: `final.mp4`, `final.edl` (CMX3600 — imports into Resolve/Premiere for hand finishing), and the trimmed `parts/`. Shots without a reference duration use the full clip. `--audio` lays a bed under the cut; beat-matched editing and sound design stay human work — say so rather than pretending otherwise. Missing clips warn and are skipped, so a partial run still yields a watchable cut.
 
 ## Transcription
 
