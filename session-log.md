@@ -229,3 +229,29 @@ relative frame links at
 the candidate list); `SHOTLIST_VAULT_DIR` suggested to Jérémie. Both
 vault stagings so far were manual copies with paths rewritten relative —
 which is what Step 4.4 does anyway.
+
+
+## 2026-08-30 — 0.5.0: Remix stage built and exercised end-to-end
+
+**Done.** `scripts/remix.py` + `scripts/comfy_templates.json` (schema logged
+in decisions.md before code). Node stack grounded by reading the litegraph
+JSON embedded in Jérémie's own ComfyUI output PNGs (Downloads + Desktop):
+GeminiImage2Node stills with reference-image conditioning,
+ByteDance2FirstLastFrameNode (Seedance 2.0) video, seven templates captured
+verbatim and scrubbed. Jérémie's calls: Seedance runs in his ComfyUI;
+restyle-from-reference conditioning. 18/18 tests; pre-existing scripts
+byte-identical to 0.4.0. SKILL.md Step 6 + failure rows; CHANGELOG;
+manifests at 0.5.0. Installed clone at `~/.claude/skills/shotlist` pulled
+to the same commit.
+
+**Exercised live** on the antonhugo horse-trek report with the real brief
+(horses → Land Rover Defenders, CanvasCamp × Patagonia people, Kyrgyz
+landscape, 16:9, keep the grade): 16/16 remix markers filled, emit produced
+a 35-node stills graph + 25-node video graph, both passing integrity
+checks (unique ids, link endpoint/slot correctness). NOT yet loaded into a
+live ComfyUI — the one verification only Jérémie's install can provide.
+
+**Pending.** Jérémie loads both workflows in ComfyUI (load success +
+generation quality = the real gate); push (now 6 commits ahead); tag
+v0.5.0 when validated; letterbox cropdetect + cosmos resolver still open
+0.5.x candidates.
