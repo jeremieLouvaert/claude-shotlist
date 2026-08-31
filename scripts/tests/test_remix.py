@@ -245,6 +245,7 @@ class TestRemix(unittest.TestCase):
             self.assertNotEqual(wired["first_frame"], wired["last_frame"])
         for n in omni:
             self.assertEqual(n["mode"], remix.MODE_ACTIVE)
+            self.assertEqual(n["widgets_values"][remix.OMNI_W_MODEL], "Omni Flash 1.1")
             wired = {i["name"]: i["link"] for i in n["inputs"]}
             self.assertIsNotNone(wired["model.images.image_1"])
             self.assertIsNotNone(wired["model.images.image_2"])

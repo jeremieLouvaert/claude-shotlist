@@ -54,6 +54,7 @@ SAVEIMAGE_W_PREFIX = 0
 SAVEVIDEO_W_PREFIX = 0
 BYTEDANCE_W_MODEL = 0
 BYTEDANCE_W_SEED = 6
+OMNI_W_MODEL = 0
 OMNI_W_SEED = 4
 
 MODE_ACTIVE = 0
@@ -323,7 +324,7 @@ def _vaulted(g: "Graph", gen: dict, out_name: str, prompt_node: dict,
 
 def build_combined(templates: dict, shots: list[dict], meta: dict,
                    stills_engine: str, video_engine: str,
-                   seedance_model: str) -> dict:
+                   seedance_model: str, omni_model: str = "Omni Flash 1.1") -> dict:
     g = Graph(templates)
     aspect = meta.get("aspect_ratio", "16:9")
     style = meta.get("style_keeper", "")
@@ -433,7 +434,8 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
         g.link(sd_out, "final_output", sd_save, "video")
 
         omni = g.add("GeminiVideoOmni", [VCOL[2], y + ENG_DY],
-                     {OMNI_W_SEED: s["n"]}, mode=omni_mode)
+                     {OMNI_W_MODEL: omni_model, OMNI_W_SEED: s["n"]},
+                     mode=omni_mode)
         g.link(first, "value", omni, "model.images.image_1")
         g.link(last, "value", omni, "model.images.image_2")
         g.link(vp, "STRING", omni, "model.prompt")
@@ -457,7 +459,8 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
 
 
 def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedance",
-         seedance_model: str = "Seedance 2.5", comfy_input: str | None = None) -> None:
+         seedance_model: str = "Seedance 2.5", comfy_input: str | None = None,
+         omni_model: str = "Omni Flash 1.1") -> None:
     remix = workdir / "remix.md"
     if not remix.exists():
         _err(f"no remix.md in {workdir} — run with --brief first")
@@ -555,6 +558,8 @@ def main() -> None:
                     help="active video engine: seedance (ByteDance first/last) or omni (Gemini Video Omni); the other is emitted muted")
     ap.add_argument("--seedance-model", default="Seedance 2.5",
                     help='Seedance model widget value (default "Seedance 2.5")')
+    ap.add_argument("--omni-model", default="Omni Flash 1.1",
+                    help='Gemini Video Omni model widget value (default "Omni Flash 1.1")')
     ap.add_argument("--comfy-input", default=None,
                     help="ComfyUI input directory; reference frames are copied there so LoadImage resolves without manual uploads (also honors $SHOTLIST_COMFY_INPUT)")
     ap.add_argument("--fidelity", default=None, metavar="GEN_DIR",
@@ -567,7 +572,7 @@ def main() -> None:
         fidelity(workdir, Path(args.fidelity))
     elif args.emit:
         emit(workdir, args.stills_engine, args.video_engine, args.seedance_model,
-             args.comfy_input)
+             args.comfy_input, args.omni_model)
     elif args.brief:
         write_remix(workdir, args.brief, args.ar)
     else:
