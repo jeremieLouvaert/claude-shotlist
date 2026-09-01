@@ -305,6 +305,45 @@ Jérémie's `canvascamp` preset is seeded there, marked Draft-for-review and
 explicitly pre-OQ-015.
 
 
+## 2026-09-01 — Omni branch moves to GeminiVideoOmniV2 (measured mismatch)
+
+The flagged risk ("Omni Flash 1.1" emitted per stated use, only "Omni
+Flash" evidenced — same failure class as Seedance 2.5) was checked against
+the running server's `/object_info` (comfyui 0.34.2) and turned out real:
+the v1 `GeminiVideoOmni` node's dynamic combo offers ONLY "Omni Flash";
+"Omni Flash 1.1" lives on `GeminiVideoOmniV2`, where the sub-widget set
+differs per model key — "1.1" is [prompt, resolution, aspect_ratio,
+task_type, seed], "Omni Flash" is [prompt, aspect_ratio, task_type,
+temperature, top_p, seed]. The v0.6.0-tagged emitter therefore asked the
+v1 node for a key it doesn't have — dormant only because Omni ships muted.
+
+**Calls made.**
+- Emit `GeminiVideoOmniV2` with a per-key widgets list built in code
+  (`_omni_widgets`); an unevidenced key errors out instead of letting the
+  dynamic combo resolve quietly. Template entry is DERIVED from the v1
+  capture + `/object_info` (structure kept, type/widgets changed) — the
+  one template in `comfy_templates.json` that is not a verbatim capture.
+  Serialization rule (model key, sub-widgets in spec order, seed control
+  last) confirmed against the v1 captured instance. Live-load in ComfyUI
+  is still the outstanding verification.
+- `task_type: "image_to_video"` explicit — the server's own tooltip states
+  two attached images mean start-frame → end-frame interpolation, which is
+  exactly the first/last contract; "auto" would leave it to model guess.
+- `resolution: "1080p"` (1.1 only) for parity with the Seedance branch,
+  which already emits 1080p — engine comparison stays like-for-like.
+- Found in passing: `emit()` never forwarded `omni_model` to
+  `build_combined` — the CLI flag was silently ignored (the default
+  papered over it). Fixed; a widgets-layout test now pins the flag path.
+
+**Also fixed — test-isolation clobber.** The remix suite runs `emit()`,
+which honors `$SHOTLIST_COMFY_INPUT` (user-level since 0.6.0): every suite
+run copied 8-byte fixture "JPGs" named `shotNN_ref.jpg` over the REAL
+horse-trek reference frames in ComfyUI's input folder. Caught by reading
+the suite's own stdout ("also copied into F:\…"); the real refs were
+restored byte-identical from the workdir, and setUp now strips the env var
+for the suite's duration.
+
+
 ## 2026-08-30 — Cache collision between engines (Jérémie's find, live use)
 
 Both engines of a stage consume the same prompt and conditioning inputs,

@@ -11,7 +11,11 @@ Close the loop: generated clips become a film, drift gets caught before the vide
 - Engine-salted vault keys: both engines of a stage share prompt + conditioning, so their `DeterministicHashVault` keys collided and the second engine was served the first's cached output (found by Jérémie in live use — Omni receiving Seedance's video). A per-engine tag node now hashes into every triad; keys are unique per engine, asserted in tests.
 - `remix.py --fidelity <gen dir>` — lists reference-vs-generated still pairs per shot half so Claude reads them side by side and verdicts drift (subject identity, accent color, grade, first↔last consistency) before the video pass; only flagged branches re-queue.
 - Brief presets — a remix ask can name a preset; SKILL.md resolves it from `$SHOTLIST_VAULT_DIR/remix-presets.md` (one `##` heading per preset, body is the brief verbatim).
-- SKILL.md Step 7 (Assemble) + fidelity and preset instructions in Step 6; 4 new tests (clip matching, trim/concat/EDL correctness, partial-cut behavior, unfilled-remix refusal; ffmpeg-dependent, skip cleanly without it) + vault-key uniqueness. Suite: 27.
+- SKILL.md Step 7 (Assemble) + fidelity and preset instructions in Step 6; 4 new tests (clip matching, trim/concat/EDL correctness, partial-cut behavior, unfilled-remix refusal; ffmpeg-dependent, skip cleanly without it) + vault-key uniqueness. Suite: 29.
+
+### Fixed
+- The Omni video branch emits `GeminiVideoOmniV2`: "Omni Flash 1.1" exists only on the V2 node's dynamic combo — the captured v1 `GeminiVideoOmni` offers just "Omni Flash" (verified against the running server's `/object_info`, comfyui 0.34.2). The sub-widget layout differs per model key ("1.1" adds resolution, drops temperature/top_p); both evidenced layouts are emitted, and an unevidenced `--omni-model` key refuses loudly instead of letting the dynamic combo resolve quietly to something else. `--omni-model` was also being dropped between `emit()` and the graph builder — the flag now reaches the emitted nodes.
+- Test isolation: the remix suite honored `$SHOTLIST_COMFY_INPUT` and copied 8-byte fixture "JPGs" over real reference frames in ComfyUI's input folder. The env var is now stripped for the suite's duration.
 
 ## [0.5.0] — 2026-08-30
 

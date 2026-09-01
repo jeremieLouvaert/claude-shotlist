@@ -54,8 +54,26 @@ SAVEIMAGE_W_PREFIX = 0
 SAVEVIDEO_W_PREFIX = 0
 BYTEDANCE_W_MODEL = 0
 BYTEDANCE_W_SEED = 6
-OMNI_W_MODEL = 0
-OMNI_W_SEED = 4
+
+# GeminiVideoOmniV2 sub-widget sets differ per model key, read from the
+# running server's /object_info (comfyui 0.34.2, 2026-09-01). "Omni Flash
+# 1.1" exists ONLY on the V2 node — the captured v1 GeminiVideoOmni offers
+# just "Omni Flash". images/videos are autogrow INPUTS, not widget slots;
+# serialization order (model key, sub-widgets in spec order, seed control
+# last) confirmed against the captured v1 instance.
+OMNI_SEED_IDX = {"Omni Flash 1.1": 5, "Omni Flash": 6}
+
+
+def _omni_widgets(model: str, aspect: str, seed: int) -> list:
+    ar = aspect if aspect in ("16:9", "9:16") else "16:9"
+    if model == "Omni Flash 1.1":
+        # [model, prompt, resolution, aspect_ratio, task_type, seed, control]
+        return [model, "", "1080p", ar, "image_to_video", seed, "randomize"]
+    if model == "Omni Flash":
+        # [model, prompt, aspect_ratio, task_type, temperature, top_p, seed, control]
+        return [model, "", ar, "image_to_video", 1.0, 0.95, seed, "randomize"]
+    _err(f"unknown --omni-model {model!r} — keys evidenced on "
+         f"GeminiVideoOmniV2: {list(OMNI_SEED_IDX)}")
 
 MODE_ACTIVE = 0
 MODE_MUTED = 2          # litegraph "never" — toggle in the UI to switch engines
@@ -236,7 +254,7 @@ class Graph:
         self._id = 0
         self._link = 0
 
-    def add(self, kind: str, pos: list, widgets: dict | None = None,
+    def add(self, kind: str, pos: list, widgets: dict | list | None = None,
             mode: int = MODE_ACTIVE) -> dict:
         n = copy.deepcopy(self.t[kind])
         self._id += 1
@@ -248,7 +266,11 @@ class Graph:
             inp["link"] = None
         for outp in n.get("outputs", []):
             outp["links"] = []
-        if widgets:
+        if isinstance(widgets, list):
+            # wholesale replacement — for nodes whose widget layout depends on
+            # a dynamic-combo model key (length may differ from the template)
+            n["widgets_values"] = list(widgets)
+        elif widgets:
             for idx, val in widgets.items():
                 n["widgets_values"][idx] = val
         self.nodes.append(n)
@@ -433,8 +455,8 @@ def build_combined(templates: dict, shots: list[dict], meta: dict,
                         {SAVEVIDEO_W_PREFIX: f"remix/{nn}_seedance"}, mode=sd_mode)
         g.link(sd_out, "final_output", sd_save, "video")
 
-        omni = g.add("GeminiVideoOmni", [VCOL[2], y + ENG_DY],
-                     {OMNI_W_MODEL: omni_model, OMNI_W_SEED: s["n"]},
+        omni = g.add("GeminiVideoOmniV2", [VCOL[2], y + ENG_DY],
+                     _omni_widgets(omni_model, aspect, s["n"]),
                      mode=omni_mode)
         g.link(first, "value", omni, "model.images.image_1")
         g.link(last, "value", omni, "model.images.image_2")
@@ -492,7 +514,8 @@ def emit(workdir: Path, stills_engine: str = "nano", video_engine: str = "seedan
     out = outdir / "remix_workflow.json"
     out.write_text(json.dumps(build_combined(templates, shots, meta,
                                              stills_engine, video_engine,
-                                             seedance_model), indent=1),
+                                             seedance_model, omni_model),
+                              indent=1),
                    encoding="utf-8", newline="\n")
 
     print(f"[remix] {len(shots)} shots -> one combined workflow")
@@ -559,7 +582,7 @@ def main() -> None:
     ap.add_argument("--seedance-model", default="Seedance 2.5",
                     help='Seedance model widget value (default "Seedance 2.5")')
     ap.add_argument("--omni-model", default="Omni Flash 1.1",
-                    help='Gemini Video Omni model widget value (default "Omni Flash 1.1")')
+                    help='GeminiVideoOmniV2 model key: "Omni Flash 1.1" (default) or "Omni Flash"')
     ap.add_argument("--comfy-input", default=None,
                     help="ComfyUI input directory; reference frames are copied there so LoadImage resolves without manual uploads (also honors $SHOTLIST_COMFY_INPUT)")
     ap.add_argument("--fidelity", default=None, metavar="GEN_DIR",

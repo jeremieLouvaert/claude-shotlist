@@ -518,6 +518,80 @@
   "color": "#432",
   "bgcolor": "#653"
  },
+ "GeminiVideoOmniV2": {
+  "id": 1196,
+  "type": "GeminiVideoOmniV2",
+  "pos": [
+   0,
+   0
+  ],
+  "size": [
+   400,
+   248
+  ],
+  "flags": {},
+  "order": 21,
+  "mode": 0,
+  "inputs": [
+   {
+    "name": "model.prompt",
+    "type": "STRING",
+    "widget": {
+     "name": "model.prompt"
+    },
+    "link": null
+   },
+   {
+    "label": "image_1",
+    "name": "model.images.image_1",
+    "shape": 7,
+    "type": "IMAGE",
+    "link": null
+   },
+   {
+    "label": "image_2",
+    "name": "model.images.image_2",
+    "shape": 7,
+    "type": "IMAGE",
+    "link": null
+   },
+   {
+    "label": "video_1",
+    "name": "model.videos.video_1",
+    "shape": 7,
+    "type": "VIDEO",
+    "link": null
+   }
+  ],
+  "outputs": [
+   {
+    "name": "VIDEO",
+    "type": "VIDEO",
+    "links": []
+   },
+   {
+    "name": "STRING",
+    "type": "STRING",
+    "links": []
+   }
+  ],
+  "properties": {
+   "cnr_id": "comfy-core",
+   "ver": "0.34.2",
+   "Node name for S&R": "GeminiVideoOmniV2"
+  },
+  "widgets_values": [
+   "Omni Flash 1.1",
+   "",
+   "1080p",
+   "16:9",
+   "image_to_video",
+   42,
+   "randomize"
+  ],
+  "color": "#432",
+  "bgcolor": "#653"
+ },
  "HashVaultSave": {
   "id": 1123,
   "type": "HashVaultSave",

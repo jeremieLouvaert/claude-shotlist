@@ -295,3 +295,28 @@ tests. Manifests 0.6.0; v0.6.0 tagged.
 
 **Pending.** Jérémie: `git push origin main` + `git push origin v0.6.0`.
 Remotion tokens-driven graphics pass parked until OQ-015.
+
+
+## 2026-09-01 — Omni Flash 1.1 re-check: real mismatch, fixed pre-push
+
+**Done.** The flagged Omni tension checked against the running server's
+`/object_info` (0.34.2) and confirmed as a real defect in the tagged-but-
+unpushed v0.6.0: "Omni Flash 1.1" doesn't exist on the emitted v1
+`GeminiVideoOmni` node — only on `GeminiVideoOmniV2`, with a different
+sub-widget layout per model key. Migrated the omni branch to V2 (per-key
+widget lists from /object_info, unevidenced keys refuse loudly,
+task_type=image_to_video explicit, 1080p for Seedance parity). Two more
+defects found and fixed in the same pass: `--omni-model` was silently
+dropped between `emit()` and the graph builder, and the test suite was
+copying 8-byte fixture JPGs over the REAL horse-trek reference frames in
+ComfyUI's input folder via `$SHOTLIST_COMFY_INPUT` (refs restored
+byte-identical from the workdir; setUp now strips the var). Details in
+decisions.md. 29/29 tests. Comfy Cloud MCP authenticated this session.
+
+**Pending.** Push is Jérémie's; recommended shape (nothing is public yet):
+`git tag -f v0.6.0 && git push origin main && git push origin v0.6.0` so
+one clean 0.6.0 ships — CHANGELOG is written for that path. If v0.6.0 is
+pushed as previously tagged instead, move the new "Fixed" bullets to a
+0.6.1 section. Live-load of the V2 omni graph in ComfyUI is the
+outstanding verification (same gate the Seedance 2.5 layout passed).
+Still open: letterbox cropdetect, cosmos.so resolver, full-film run.

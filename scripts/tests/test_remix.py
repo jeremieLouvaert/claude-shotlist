@@ -1,5 +1,6 @@
 """Tests for remix.py — remix.md schema and ComfyUI workflow emission."""
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -39,6 +40,10 @@ None.
 class TestRemix(unittest.TestCase):
 
     def setUp(self):
+        # emit() honors $SHOTLIST_COMFY_INPUT — a suite run must never copy
+        # fixture bytes into a real ComfyUI input folder (it has, once:
+        # shot01/02_ref.jpg were overwritten with 8-byte fakes)
+        self._saved_comfy_input = os.environ.pop("SHOTLIST_COMFY_INPUT", None)
         self.tmp = Path(tempfile.mkdtemp(prefix="watch-remix-test-"))
         (self.tmp / "report.md").write_text(FILLED_REPORT, encoding="utf-8")
         frames = self.tmp / "frames"
@@ -47,6 +52,8 @@ class TestRemix(unittest.TestCase):
             (frames / n).write_bytes(b"\xff\xd8\xff\xe0fakejpg")
 
     def tearDown(self):
+        if self._saved_comfy_input is not None:
+            os.environ["SHOTLIST_COMFY_INPUT"] = self._saved_comfy_input
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _fill(self, path: Path):
@@ -116,7 +123,7 @@ class TestRemix(unittest.TestCase):
         self.assertEqual(counts["GeminiImage2Node"], 2 * 2)
         self.assertEqual(counts["OpenAIGPTImageNodeV2"], 2 * 2)
         self.assertEqual(counts["ByteDance2FirstLastFrameNode"], 2)
-        self.assertEqual(counts["GeminiVideoOmni"], 2)
+        self.assertEqual(counts["GeminiVideoOmniV2"], 2)
         self.assertEqual(counts["SaveImage"], 2 * 4)
         self.assertEqual(counts["SaveVideo"], 2 * 2)
         # 2 groups per shot + 2 section super-groups
@@ -224,7 +231,7 @@ class TestRemix(unittest.TestCase):
     def test_video_wiring_and_engine_muting(self):
         w = self._emit(video_engine="omni")  # omni active, seedance muted
         bd = [n for n in w["nodes"] if n["type"] == "ByteDance2FirstLastFrameNode"]
-        omni = [n for n in w["nodes"] if n["type"] == "GeminiVideoOmni"]
+        omni = [n for n in w["nodes"] if n["type"] == "GeminiVideoOmniV2"]
         self.assertEqual(len(bd), 2)
         self.assertEqual(len(omni), 2)
         by_seed = {n["widgets_values"][6]: n for n in bd}
@@ -243,18 +250,48 @@ class TestRemix(unittest.TestCase):
             self.assertIsNotNone(wired["last_frame"])
             self.assertIsNotNone(wired["model.prompt"])
             self.assertNotEqual(wired["first_frame"], wired["last_frame"])
+        omni_seeds = set()
         for n in omni:
             self.assertEqual(n["mode"], remix.MODE_ACTIVE)
-            self.assertEqual(n["widgets_values"][remix.OMNI_W_MODEL], "Omni Flash 1.1")
+            # live-schema "Omni Flash 1.1" layout on GeminiVideoOmniV2:
+            # [model, prompt, resolution, aspect_ratio, task_type, seed, control]
+            wv = n["widgets_values"]
+            self.assertEqual(len(wv), 7)
+            self.assertEqual(wv[0], "Omni Flash 1.1")
+            self.assertEqual(wv[2], "1080p")
+            self.assertEqual(wv[3], "16:9")
+            self.assertEqual(wv[4], "image_to_video")
+            omni_seeds.add(wv[remix.OMNI_SEED_IDX["Omni Flash 1.1"]])
             wired = {i["name"]: i["link"] for i in n["inputs"]}
             self.assertIsNotNone(wired["model.images.image_1"])
             self.assertIsNotNone(wired["model.images.image_2"])
             self.assertIsNotNone(wired["model.prompt"])
             self.assertNotEqual(wired["model.images.image_1"], wired["model.images.image_2"])
+        self.assertEqual(omni_seeds, {1, 2}, "per-shot seed lands in the seed slot")
         gets = sorted(n["widgets_values"][0] for n in w["nodes"] if n["type"] == "WirelessGet")
         # shotNN_first appears twice: stills pass-2 conditioning + video input
         self.assertEqual(gets, ["shot01_first", "shot01_first", "shot01_last",
                                 "shot02_first", "shot02_first", "shot02_last"])
+
+    def test_omni_flash_legacy_layout(self):
+        # the non-1.1 key carries a DIFFERENT sub-widget set on the V2 node:
+        # [model, prompt, aspect_ratio, task_type, temperature, top_p, seed, control]
+        w = self._emit(omni_model="Omni Flash")
+        omni = [n for n in w["nodes"] if n["type"] == "GeminiVideoOmniV2"]
+        self.assertEqual(len(omni), 2)
+        for n in omni:
+            wv = n["widgets_values"]
+            self.assertEqual(len(wv), 8)
+            self.assertEqual(wv[0], "Omni Flash")
+            self.assertEqual(wv[2], "16:9")
+            self.assertEqual(wv[3], "image_to_video")
+            self.assertIn(wv[remix.OMNI_SEED_IDX["Omni Flash"]], (1, 2))
+
+    def test_unknown_omni_model_refuses(self):
+        # an unevidenced model key must fail loud, not emit a graph that the
+        # dynamic combo would resolve quietly to something else
+        with self.assertRaises(SystemExit):
+            self._emit(omni_model="Omni Pro 2")
 
     def test_no_node_overlaps_and_section_colors(self):
         w = self._emit()
