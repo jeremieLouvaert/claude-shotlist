@@ -7,14 +7,69 @@ transcribe.py can parse them without needing Whisper.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
 
 VIDEO_EXTS = {".mp4", ".mkv", ".webm", ".mov", ".m4v", ".avi", ".flv", ".wmv"}
+
+# Moodboard hosts whose save pages have no yt-dlp extractor but name the
+# original post in their own markup. cosmos.so measured 2026-09-02: the
+# original URL is NOT in the og: tags — it is the `sameAs` field of the
+# element's JSON-LD block. The page also carries Organization/WebSite
+# JSON-LD blocks whose `sameAs` lists Cosmos's own social accounts, so the
+# parser must select by block type, not take the first `sameAs` in the page.
+MOODBOARD_HOSTS = {"cosmos.so", "www.cosmos.so"}
+
+_BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+               "(KHTML, like Gecko) Chrome/128.0 Safari/537.36")
+
+_LDJSON_RE = re.compile(
+    r'<script type="application/ld\+json">(.*?)</script>', re.DOTALL)
+
+
+def _fetch_page(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": _BROWSER_UA})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return resp.read().decode("utf-8", "replace")
+
+
+def resolve_moodboard_url(url: str) -> str:
+    """Resolve a moodboard save (cosmos.so) to the original post URL, which
+    yt-dlp can handle. Non-moodboard URLs pass through untouched."""
+    if urlparse(url).netloc.lower() not in MOODBOARD_HOSTS:
+        return url
+    try:
+        html = _fetch_page(url)
+    except Exception as exc:
+        raise SystemExit(
+            f"cosmos.so fetch failed ({exc}) — open the save in a browser "
+            "and pass the original post URL directly"
+        )
+    for m in _LDJSON_RE.finditer(html):
+        try:
+            block = json.loads(m.group(1))
+        except ValueError:
+            continue
+        if block.get("@type") in ("Organization", "WebSite"):
+            continue  # site-level blocks; their sameAs is Cosmos's own socials
+        same = block.get("sameAs")
+        if isinstance(same, list):
+            same = next((s for s in same if isinstance(s, str)), None)
+        if (isinstance(same, str) and is_url(same)
+                and "cosmos.so" not in urlparse(same).netloc.lower()):
+            print(f"[watch] cosmos.so save resolves to original post: {same}",
+                  file=sys.stderr)
+            return same
+    raise SystemExit(
+        "cosmos.so page names no original post in its JSON-LD — open the "
+        "save in a browser and pass the original post URL directly"
+    )
 
 
 def is_url(source: str) -> bool:
@@ -119,7 +174,7 @@ def download_url(url: str, out_dir: Path) -> dict:
 
 def download(source: str, out_dir: Path) -> dict:
     if is_url(source):
-        return download_url(source, out_dir)
+        return download_url(resolve_moodboard_url(source), out_dir)
     return resolve_local(source)
 
 

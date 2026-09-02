@@ -2,6 +2,16 @@
 
 All notable changes are documented here. (Through 0.3.0 this project was `/watch`.)
 
+## [0.7.0] — 2026-09-02
+
+Moodboard saves become first-class inputs, and the last unevidenced remix claim gets its evidence.
+
+### Added
+- cosmos.so resolver: `download.py` resolves a moodboard element URL to the original post before yt-dlp runs, reading the `sameAs` field of the element's own JSON-LD block — measured 2026-09-02: the `og:` tags don't carry the source, and the page's site-level Organization block lists Cosmos's OWN social accounts in `sameAs`, so the parser selects by block type instead of taking the first match. Unresolvable or unfetchable saves exit loud with the manual hop. 4 tests (fixture mirrors the measured page, no network); verified live against the antonhugo save, which resolves to the same reel URL the manual hop found in 0.4.0. Suite: 33.
+
+### Verified
+- The vault `any_input` image-hash wiring, flagged UNVERIFIED at 0.5.0: confirmed from reading the running install's own node source (ComfyUI-API-Optimizer 1.4.2). `DeterministicHashVault` hashes wired inputs recursively — tensors bit-exact (dtype + shape + full content), dicts/lists walked, unwired slots contributing nothing — so conditioning images do key the cache and the documented prompt-only fallback is unnecessary.
+
 ## [0.6.0] — 2026-08-30
 
 Close the loop: generated clips become a film, drift gets caught before the video pass, and recurring transposition briefs get names.

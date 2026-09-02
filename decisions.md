@@ -305,6 +305,57 @@ Jérémie's `canvascamp` preset is seeded there, marked Draft-for-review and
 explicitly pre-OQ-015.
 
 
+## 2026-09-02 — cosmos.so resolver (0.7.0): JSON-LD sameAs, selected by block type
+
+The 0.4.0 usage note ("resolution is a manual hop today") is retired: the
+hop is now code in `download.py`, running before yt-dlp on any
+`cosmos.so` URL. Measured against the same element the manual hop used
+(cosmos.so/e/1550931937):
+
+- The `og:` tags do NOT carry the original post URL — `og:description`
+  only names it in prose ("An Instagram post added by…"). The 0.4.0 note
+  said "og-metadata" loosely; the URL actually lives in the element's
+  schema.org JSON-LD block (`@type: ImageObject`), field `sameAs`.
+- **Trap, measured:** the page carries three JSON-LD blocks, and the
+  site-level Organization block's `sameAs` lists Cosmos's OWN social
+  accounts (instagram.com/cosmos/ first). A parser taking the first
+  `sameAs` in the page would resolve every save to Cosmos's Instagram
+  profile. Selection is by block type: skip Organization/WebSite, then
+  take a `sameAs` that is a URL not on cosmos.so.
+- Failure stays loud: no resolvable source, or a fetch error, exits with
+  the manual hop spelled out — never hands the cosmos URL to yt-dlp,
+  whose generic-extractor error says nothing about why.
+
+Stdlib only (urllib + regex over `<script type="application/ld+json">`),
+`_fetch_page` factored out so tests run on a fixture mirroring the
+measured page, no network. Verified live: the element resolves to the
+identical reel URL the manual hop produced. Other moodboard hosts stay
+out until one is measured — `MOODBOARD_HOSTS` is the extension point.
+
+## 2026-09-02 — Vault any_input image hashing: UNVERIFIED → confirmed from reading
+
+The 0.5.0 flag ("this wiring is UNVERIFIED against a live run; if the
+node can't hash image tensors, unplug the any_input links") is resolved
+by reading the running install's own node source —
+`custom_nodes/ComfyUI-API-Optimizer/api_optimizer_nodes.py` (pack
+1.4.2, commit 3c8ea5f), the code the server actually executes:
+
+- `_hash_value` recurses over tensors, dicts, lists, primitives;
+  `_hash_tensor` folds dtype + shape + full tensor bytes (contiguous,
+  CPU) into the SHA-256 — image conditioning wired into `any_input`
+  slots therefore keys the cache on pixel content, by design. The slot
+  tooltip says exactly this ("image, latent, conditioning… hashed
+  recursively").
+- Unwired slots contribute nothing; wired slots 2–4 add a `__slotN:`
+  prefix — so the emitted graphs' variable slot usage can't collide with
+  a workflow using fewer slots.
+
+CONFIRMED from reading, not running — but this is the implementation
+itself, not documentation about it; the live behavior already observed
+(engine-tag salting taking effect, redo-one-branch cache hits) ran
+through this exact code path. The prompt-only fallback documented at
+0.5.0 is unnecessary; the caveat survives only as history.
+
 ## 2026-09-01 — Omni branch moves to GeminiVideoOmniV2 (measured mismatch)
 
 The flagged risk ("Omni Flash 1.1" emitted per stated use, only "Omni

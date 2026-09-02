@@ -320,3 +320,29 @@ pushed as previously tagged instead, move the new "Fixed" bullets to a
 0.6.1 section. Live-load of the V2 omni graph in ComfyUI is the
 outstanding verification (same gate the Seedance 2.5 layout passed).
 Still open: letterbox cropdetect, cosmos.so resolver, full-film run.
+
+
+## 2026-09-02 — 0.7.0: cosmos resolver + any_input evidence
+
+**Done.** Jérémie's call: skip cropdetect and the full-film run; tackle the
+rest of the open list. Two items closed:
+
+- **cosmos.so resolver** in `download.py`, measured against the same
+  element the 0.4.0 manual hop used. The URL is in the element's JSON-LD
+  `sameAs`, not the og: tags — and the page's Organization block lists
+  Cosmos's own socials in `sameAs`, so selection is by block type (the
+  first-match parser would resolve every save to Cosmos's own Instagram).
+  Fail-loud on unresolvable saves. 4 fixture tests; verified live → the
+  identical reel URL. Suite: 33/33.
+- **Vault `any_input` image hashing** UNVERIFIED flag resolved by reading
+  the running install's node source (ComfyUI-API-Optimizer 1.4.2):
+  tensors are hashed bit-exact (dtype+shape+bytes) recursively; the
+  prompt-only fallback is unnecessary. Details in decisions.md.
+
+Manifests 0.7.0; v0.7.0 tagged; installed clone synced.
+
+**Pending.** Push is Jérémie's — v0.6.0 retag recommendation stands, then:
+`git tag -f v0.6.0 8d51b23 && git push origin main && git push origin v0.6.0 && git push origin v0.7.0`.
+Omni V2 live-load in ComfyUI still the outstanding verification.
+Deliberately skipped (Jérémie, this session): letterbox cropdetect,
+full-film horse-trek run. Parked: Remotion pass (OQ-015).
